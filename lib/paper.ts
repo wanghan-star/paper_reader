@@ -1,5 +1,5 @@
-export type Sentence = { id: number; en: string; zh?: string; heading?: boolean };
-export type PaperPage = { sentences: Sentence[]; text: string; heading: string; ocr?: boolean };
+export type Sentence = { id: number; en: string; zh?: string; heading?: boolean;kind?:'heading'|'paragraph'|'equation'|'figure'|'table';box?:{x:number;y:number;width:number;height:number};uncertain?:boolean };
+export type PaperPage = { sentences: Sentence[]; text: string; heading: string; ocr?: boolean;needsVision?:boolean };
 export type Theme = "forest" | "sepia" | "mist" | "night" | "custom";
 export type Settings = { theme:Theme; background:string; readingMode:"paged"|"scroll"; textSize:number; readingSpan:number; compact:boolean; teaching:boolean; codexModel: string; autoTranslate: boolean };
 export const DEFAULT_SETTINGS: Settings = { theme:"forest", background:"#fffefa", readingMode:"paged", textSize:18, readingSpan:2, compact:true, teaching:true, codexModel: "gpt-6.1-sol", autoTranslate: true };
@@ -33,7 +33,7 @@ export function toSentences(text: string): Sentence[] {
   for (const raw of text.split("\n")) {
     const line=raw.trim();
     if (!line) { if(paragraph) blocks.push(paragraph); paragraph=""; continue; }
-    const heading = line.length<100 && (/^(\d+(?:\.\d+)*\s+[A-Z]|abstract$|references$|introduction$|conclusion$)/i.test(line) || (line.length<65 && !/[.,;:!?-]$/.test(line) && line.split(" ").length<9 && /^[A-Z]/.test(line)));
+    const heading = line.length<100 && /^(\d+(?:\.\d+)*\s+[A-Z]|abstract$|references$|introduction$|conclusion$)/i.test(line);
     if(heading) { if(paragraph) blocks.push(paragraph); blocks.push(line); paragraph=""; }
     else { paragraph=paragraph.endsWith("-") ? paragraph.slice(0,-1)+line : paragraph ? paragraph+" "+line : line; }
   }

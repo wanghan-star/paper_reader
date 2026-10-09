@@ -20,6 +20,13 @@ test('ordinary brackets, Markdown links, code samples, and existing math remain 
 \[\frac{x}{y}\]
 \`\`\``].map(s=>s.replaceAll('\\`','`')))assert.equal(normalizeMath(source),source);
 });
+test('numbered formulas are canonical display blocks rather than inline Markdown math',()=>{
+  const source=String.raw`$$H_{\mathrm{eff}}=H_{\mathrm{ext}}+\frac{2K_i}{\mu_0M_st_{\mathrm{fl}}}\tag{3}$$`;
+  const normalized=normalizeMath(source);
+  assert.ok(normalized.startsWith('$$\n')&&normalized.endsWith('\n$$'));
+  assert.equal(normalizeMath(normalized),normalized);
+  assert.ok(katex.renderToString(normalized.slice(3,-3),{displayMode:true,throwOnError:true}).includes('mfrac'));
+});
 test('reading groups combine pages without losing or duplicating original page identity',()=>{
   assert.deepEqual(readingIndexes(5,1,'paged',2),[0,1]);assert.deepEqual(readingIndexes(5,2,'paged',2),[0,1]);assert.deepEqual(readingIndexes(5,3,'paged',2),[2,3]);assert.deepEqual(readingIndexes(5,5,'paged',2),[4]);
   assert.deepEqual(readingIndexes(5,3,'scroll',2),[0,1,2,3,4]);assert.deepEqual(readingIndexes(5,3,'paged',2,true),[2]);

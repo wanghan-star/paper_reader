@@ -14,6 +14,8 @@ import AppearanceDialog from "./appearance-dialog";
 import LessonView from "./lesson-view";
 import { instantVisual } from "@/lib/lesson-preview";
 import type { Lesson } from "@/lib/lesson";
+import {pageFromBlocks,toReadingParagraphs} from '@/lib/page-content';
+import {pageCanvas} from '@/lib/pdf-render';
 
 type Message={id:number;role:"user"|"assistant";content:string;image?:string;page:number;error?:boolean;lesson?:Lesson;visual?:Lesson["visual"];streaming?:boolean;instant?:boolean};
 type Attachment={type:"image"|"text";value:string;page:number;context:string};
@@ -25,11 +27,7 @@ async function loadPdf(data:Uint8Array|string) {
   return pdf.getDocument(typeof data==="string"?{url:data,cMapUrl:"/cmaps/",cMapPacked:true,standardFontDataUrl:"/standard_fonts/",wasmUrl:"/wasm/"}:{data,cMapUrl:"/cmaps/",cMapPacked:true,standardFontDataUrl:"/standard_fonts/",wasmUrl:"/wasm/"}).promise;
 }
 async function pageImage(doc:PDFDocumentProxy,index:number) {
-  const page=await doc.getPage(index);const original=page.getViewport({scale:1});
-  const viewport=page.getViewport({scale:Math.min(2.2,1900/Math.max(original.width,original.height))});
-  const canvas=document.createElement("canvas");canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
-  await page.render({canvas,canvasContext:canvas.getContext("2d")!,viewport}).promise;
-  return canvas.toDataURL("image/jpeg",.92);
+  return (await pageCanvas(doc,index)).toDataURL("image/jpeg",.94);
 }
 
 export default function Reader() {
@@ -84,12 +82,12 @@ export default function Reader() {
       for(const index of targets){
         if(controller.signal.aborted)throw new DOMException("取消","AbortError");
         let p=pages[index];
-        if((forceOCR&&index===focusPage-1)||p.text.replace(/\s/g,"").length<35){
-          setTranslation(`正在识别第 ${index+1} 页…`);
+        if((forceOCR&&index===focusPage-1)||p.needsVision||p.text.replace(/\s/g,"").length<35){
+          setTranslation(`正在识别第 ${index+1} / ${pages.length} 页 · 正文、公式与图表…`);
           const image=await pageImage(pdf,index+1);if(controller.signal.aborted)throw new DOMException("取消","AbortError");
-          const result=await api("ocr",{image},controller.signal);if(epoch.current!==version)return;
-          const sentences=toSentences(result.content);if(!sentences.length)throw new Error(`第 ${index+1} 页未识别到文字，可查看原文并框选提问。`);
-          p={sentences,text:result.content,heading:sentences.find(s=>s.heading)?.en||`第 ${index+1} 页`,ocr:true};
+          const result=await api("layout",{image,context:p.text,page:index+1},controller.signal);if(epoch.current!==version)return;
+          if(!result.blocks)throw new Error(`第 ${index+1} 页识别未完成，原页已保留，请重新识别。`);
+          p=pageFromBlocks(result.blocks,p);
           setPages(prev=>prev.map((value,i)=>i===index?p:value));
         }
         const batches=translationBatches(p.sentences);
@@ -128,7 +126,7 @@ export default function Reader() {
       const parsed:PaperPage[]=[];
       for(let index=1;index<=nextDoc.numPages;index++){
         const pdfPage=await nextDoc.getPage(index);const text=extractText((await pdfPage.getTextContent()).items.filter(item=>"str"in item) as Parameters<typeof extractText>[0],pdfPage.getViewport({scale:1}).width);
-        const sentences=toSentences(text);parsed.push({text,sentences,heading:sentences.find(s=>s.heading&&s.en.length>4)?.en||`第 ${index} 页`});
+        const sentences=toReadingParagraphs(text);parsed.push({text,sentences,heading:sentences.find(s=>s.heading&&s.en.length>4)?.en||`第 ${index} 页`,needsVision:true});
       }
       if(version!==epoch.current){void nextDoc.destroy();return;}
       const metadata=await nextDoc.getMetadata().catch(()=>null);const info=metadata?.info as {Title?:string}|undefined;
@@ -179,7 +177,7 @@ export default function Reader() {
         <div className="sidebar-bottom"><div className="reading-tip"><Leaf size={19}/><p>不必一次读懂。<br/>每一个疑问，都值得停留。</p></div><button onClick={()=>setSettingsOpen(true)} className="model-status"><span className={`status-dot ${codexReady?"on":""}`}/><div><span>{codexReady?"本地 Codex":"连接 Codex"}</span><small>{activeModel}</small></div><ChevronRight size={14}/></button></div>
       </aside>
       <main className="reader-main"><div className="reader-toolbar"><button className="icon-btn mobile-only" aria-label="打开论文目录" onClick={()=>setNavOpen(true)}><Menu size={19}/></button><div className="segmented"><button className={tab==="bilingual"?"selected":""} onClick={()=>setTab("bilingual")}><Languages size={15}/>中英对照</button><button className={tab==="pdf"?"selected":""} onClick={()=>setTab("pdf")}><FileText size={14}/>PDF 原文</button></div><div className="toolbar-right"><div className="segmented reading-mode-switch" aria-label="阅读模式"><button aria-pressed={!continuous} className={!continuous?"selected":""} onClick={()=>saveSettings({...settings,readingMode:"paged"},"已切换翻页阅读")} title="翻页模式">翻页</button><button aria-pressed={continuous} className={continuous?"selected":""} onClick={()=>saveSettings({...settings,readingMode:"scroll"},"已切换连续滑动")} title="连续滑动模式">滑动</button></div><div className="zoom-controls"><button aria-label="缩小" disabled={zoom<=75} onClick={()=>setZoom(z=>Math.max(75,z-10))}><Minus size={13}/></button><span>{zoom}%</span><button aria-label="放大" disabled={zoom>=150} onClick={()=>setZoom(z=>Math.min(150,z+10))}><Plus size={13}/></button></div><span className="toolbar-divider"/><button className="icon-btn" onClick={exportTranslation} title="导出中英对照" aria-label="导出中英对照"><ArrowDownToLine size={17}/></button><button className="icon-btn assistant-toggle" aria-label="打开 AI 阅读助手" onClick={()=>setAssistantOpen(v=>!v)}><MessageSquareText size={18}/></button></div></div>
-        <div className="document-action-bar"><div>{isDemo?<span className="demo-tag">体验示例</span>:<span className="file-tag">PDF</span>}<span>{isDemo?"上传你的论文，开启真正的阅读":"中文在上 · 英文在下 · 逐句对照"}</span></div><div className="translation-actions">{translation?<button className="text-button" onClick={()=>translationController.current?.abort()}><Square size={12}/>停止翻译</button>:<><button className="text-button" disabled={loading} onClick={()=>void translate(false)}><Sparkles size={13}/>翻译当前页</button><details className="translation-menu"><summary aria-label="更多翻译选项"><ChevronDown size={15}/></summary><div><button onClick={e=>{e.currentTarget.closest("details")?.removeAttribute("open");void translate(true);}}>翻译全文</button><button onClick={e=>{e.currentTarget.closest("details")?.removeAttribute("open");void translate(false,true);}}>视觉识别并翻译此页</button></div></details></>}</div></div>
+        <div className="document-action-bar"><div>{isDemo?<span className="demo-tag">体验示例</span>:<span className="file-tag">PDF</span>}<span>{isDemo?"上传你的论文，开启真正的阅读":"中文在上 · 英文在下 · 图表保留"}</span></div><div className="translation-actions">{translation?<button className="text-button" onClick={()=>translationController.current?.abort()}><Square size={12}/>停止翻译</button>:<><button className="text-button" disabled={loading} onClick={()=>void translate(false)}><Sparkles size={13}/>翻译当前页</button><details className="translation-menu"><summary aria-label="更多翻译选项"><ChevronDown size={15}/></summary><div><button onClick={e=>{e.currentTarget.closest("details")?.removeAttribute("open");void translate(true);}}>翻译全文</button><button onClick={e=>{e.currentTarget.closest("details")?.removeAttribute("open");void translate(false,true);}}>视觉识别并翻译此页</button></div></details></>}</div></div>
         {translation&&<div className="translation-status" role="status"><LoaderCircle size={14} className="spin"/>{translation}</div>}
         <div className="reader-scroll" ref={reader} onMouseUp={selectText} onTouchEnd={()=>setTimeout(selectText,100)} onScroll={onReadingScroll}>
           {tab==="bilingual"?<article className="paper-article" style={{fontSize:`${settings.textSize*zoom/100}px`}}><div className="paper-kicker"><span>{isDemo?"PAPERLEAF READING SAMPLE":"YOUR READING SPACE"}</span><span>{continuous?"连续阅读":`原文 ${shown[0]+1}–${shown.at(-1)!+1} 页`}</span></div><h1>{title}</h1>{isDemo&&<p className="paper-subtitle">{demo.subtitle}</p>}<div className="paper-meta"><span><FileText size={12}/>{isDemo?"原创阅读示例":"上传的论文"}</span><span>{continuous?"逐页向下阅读":`每个阅读页合并 ${settings.readingSpan} 页原文`}</span></div><div className="paper-rule"/>
