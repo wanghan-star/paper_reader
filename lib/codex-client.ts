@@ -1,11 +1,12 @@
 import type { Lesson } from "./lesson";
 type Result={content:string;translations:{id:number;zh:string}[];lesson?:Lesson};
-type Job={id:string;status:string;error?:string;result?:Result;partial?:string;visual?:Lesson["visual"]};
+export type CodexProgress={content?:string;visual?:Lesson["visual"];translation?:{translations:{id:number;zh:string}[];completed:number;total:number;retrying:boolean}};
+type Job={id:string;status:string;error?:string;result?:Result;partial?:string;visual?:Lesson["visual"];translation?:CodexProgress["translation"]};
 async function read(response:Response){
   let body:Job;try{body=await response.json() as Job;}catch{throw new Error('Codex 本地服务未连接，请从桌面快捷方式重新打开知页。');}
   if(!response.ok)throw new Error(body.error||'Codex 本地服务未连接，请从桌面启动知页。');return body;
 }
-export async function callCodex(task:string,payload:Record<string,unknown>,model:string,signal:AbortSignal,onProgress?:(p:{content?:string;visual?:Lesson["visual"]})=>void):Promise<Result>{
+export async function callCodex(task:string,payload:Record<string,unknown>,model:string,signal:AbortSignal,onProgress?:(p:CodexProgress)=>void):Promise<Result>{
   signal.throwIfAborted();
   let job:Job|undefined;let cancelSent=false;
   const cancel=()=>{if(job?.id&&!cancelSent){cancelSent=true;void fetch(`/api/codex/jobs/${job.id}`,{method:'DELETE',keepalive:true}).catch(()=>{});}};
@@ -17,7 +18,7 @@ export async function callCodex(task:string,payload:Record<string,unknown>,model
     const deadline=Date.now()+30*60*1000;
     while(true){
       signal.throwIfAborted();
-      if(job.partial||job.visual)onProgress?.({content:job.partial,visual:job.visual});
+      if(job.partial||job.visual||job.translation)onProgress?.({content:job.partial,visual:job.visual,translation:job.translation});
       if(job.status==='completed'&&job.result)return job.result;
       if(job.status==='failed')throw new Error(job.error||'Codex 处理失败，请重试。');
       if(job.status==='cancelled')throw new DOMException('已停止','AbortError');

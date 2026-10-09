@@ -94,10 +94,20 @@ export default function Reader() {
         }
         const batches=translationBatches(p.sentences);
         for(let b=0;b<batches.length;b++){
-          setTranslation(`正在翻译第 ${index+1} / ${pages.length} 页 · ${b+1}/${batches.length} 批`);
-          const result=await api("translate",{sentences:batches[b].map(({id,en})=>({id,en}))},controller.signal);if(epoch.current!==version)return;
-          const lookup=new Map<number,string>(result.translations.map((r:{id:number;zh:string})=>[r.id,r.zh]));
-          setPages(prev=>prev.map((value,i)=>i===index?{...value,sentences:value.sentences.map(s=>lookup.has(s.id)?{...s,zh:lookup.get(s.id)}:s)}:value));
+          const status=`正在翻译第 ${index+1} / ${pages.length} 页 · ${b+1}/${batches.length} 批`;
+          setTranslation(status);
+          const apply=(rows:{id:number;zh:string}[])=>{
+            if(epoch.current!==version)return;
+            const lookup=new Map(rows.map(r=>[r.id,r.zh]));
+            setPages(prev=>prev.map((value,i)=>i===index?{...value,sentences:value.sentences.map(s=>lookup.has(s.id)?{...s,zh:lookup.get(s.id)}:s)}:value));
+          };
+          const result=await callCodex("translate",{sentences:batches[b].map(({id,en})=>({id,en}))},settings.codexModel,controller.signal,progress=>{
+            if(epoch.current!==version||!progress.translation)return;
+            const {translations,completed,total,retrying}=progress.translation;
+            apply(translations);
+            setTranslation(`${status} · ${completed}/${total} 句${retrying?" · 正在自动补译":""}`);
+          });if(epoch.current!==version)return;
+          apply(result.translations);
         }
       }
       notify(all?"全文翻译完成，可以慢慢读了。":"当前页翻译完成。");

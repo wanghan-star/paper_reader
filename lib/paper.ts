@@ -48,10 +48,10 @@ export function toSentences(text: string): Sentence[] {
   return values.flatMap(s=>s.length>2200 ? (s.match(/[\s\S]{1,2000}(?:\s|$)/g)??[s]) : [s]).map((en,id)=>({id,en,heading:en.length<100 && !/[.!?]$/.test(en)}));
 }
 
-export function translationBatches(sentences: Sentence[], maxChars=5500): Sentence[][] {
+export function translationBatches(sentences: Sentence[], maxChars=3500): Sentence[][] {
   const result:Sentence[][]=[]; let group:Sentence[]=[]; let size=0;
   for(const sentence of sentences.filter(s=>!s.zh)) {
-    if(group.length && (size+sentence.en.length>maxChars || group.length>=18)) { result.push(group);group=[];size=0; }
+    if(group.length && (size+sentence.en.length>maxChars || group.length>=12)) { result.push(group);group=[];size=0; }
     group.push(sentence);size+=sentence.en.length;
   }
   if(group.length) result.push(group);

@@ -11,7 +11,7 @@ test('sentences preserve abbreviations and join line-break hyphenation',()=>{
   assert.equal(output[0].en,'1 Introduction');assert.equal(output[1].en,'The Transformer processes tokens.');assert.equal(output[2].en,'Dr. Smith studies it.');
 });
 test('translation batches bound work and omit already translated sentences',()=>{
-  const rows=Array.from({length:50},(_,id)=>({id,en:'x'.repeat(400),...(id===0?{zh:'已有译文'}:{})}));const batches=core.translationBatches(rows);assert.equal(batches.flat().length,49);assert.equal(batches.flat()[0].id,1);for(const batch of batches){assert.ok(batch.length<=18);assert.ok(batch.reduce((n,r)=>n+r.en.length,0)<=5500);}
+  const rows=Array.from({length:50},(_,id)=>({id,en:'x'.repeat(400),...(id===0?{zh:'已有译文'}:{})}));const batches=core.translationBatches(rows);assert.equal(batches.flat().length,49);assert.equal(batches.flat()[0].id,1);for(const batch of batches){assert.ok(batch.length<=12);assert.ok(batch.reduce((n,r)=>n+r.en.length,0)<=3500);}
 });
 test('translation ids may arrive out of order but cannot be missing or duplicated',()=>{
   const valid=core.parseTranslations('{"translations":[{"id":2,"zh":"第二句"},{"id":1,"zh":"第一句"}]}',[{id:1},{id:2}]);assert.equal(valid[0].id,2);
