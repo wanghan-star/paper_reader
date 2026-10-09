@@ -5,6 +5,11 @@ import ts from 'typescript';
 import katex from 'katex';
 const load=async file=>import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64'));
 const {normalizeMath}=await load('lib/math.ts');const {readingIndexes,colorInk}=await load('lib/reading.ts');
+const {instantVisual}=await load('lib/lesson-preview.ts');
+test('KV Cache preview appears only for a requested dynamic demonstration',()=>{
+  for(const q of ['KV Cache 的英文全称是什么？','解释 KV Cache','KV Cache 动画中的 6 是什么意思？','不要动画，用文字解释 KV Cache','Show KV Cache with no animation'])assert.equal(instantVisual(q),undefined,q);
+  assert.equal(instantVisual('用动画演示 KV Cache 如何复用历史').type,'tokens');
+});
 const formula=String.raw`\operatorname{Attention}(Q,K,V)=\operatorname{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V`;
 test('AI display and inline LaTeX survive Markdown delimiter conversion',()=>{
   for(const input of [String.raw`\[${formula}\]`,'[ '+formula+' ]','$$'+formula+'$$']){

@@ -1,5 +1,5 @@
 "use client";
-import type { Lesson } from "@/lib/lesson";
-export default function TokenAnimation({steps,step}:{steps:Lesson["visual"]["steps"];step:number}){
+import type { LessonVisual } from "@/lib/lesson";
+export default function TokenAnimation({steps,step}:{steps:LessonVisual["steps"];step:number}){
   return <div className="kv-illustration"><div className="kv-panels">{[false,true].map(cache=><div className="kv-panel" key={String(cache)}><h4>{cache?"使用 KV Cache":"不使用 KV Cache"}</h4><span className="kv-caption">{cache?"历史 K/V 直接复用":"历史词元重复计算 K/V"}</span><div className="kv-rows">{steps.map((_,row)=><div className={`kv-row ${row===step?"current":""} ${row>step?"future":""}`} key={row}><span className="kv-row-label">第 {row+1} 步</span><div className="kv-token-line">{steps.slice(0,row+1).map((token,i)=><span key={i} title={token.label} className={`kv-token ${i===row?"fresh":cache?"cached":"recompute"}`}>{token.label.slice(0,5)}</span>)}</div></div>)}</div><div className="kv-count"><span>累计需计算 K/V 的词元</span><strong>{cache?step+1:(step+1)*(step+2)/2}</strong></div></div>)}</div><div className="kv-legend"><span><i className="fresh"/>新计算</span><span><i className="cached"/>复用缓存</span><span><i className="recompute"/>重复计算</span></div><p className="kv-clarification">示意只比较 K/V 投影；注意力仍需读取历史 K/V，不会省略上下文。</p></div>;
 }
