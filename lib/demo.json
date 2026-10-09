@@ -1,0 +1,33 @@
+{
+  "title": "Understanding the Transformer",
+  "subtitle": "A visual guide to attention mechanisms",
+  "pages": [
+    {"heading":"摘要与引言","sentences":[
+      {"id":0,"en":"Abstract","zh":"摘要","heading":true},
+      {"id":1,"en":"The Transformer is a neural network architecture that uses attention to represent relationships between tokens in a sequence.","zh":"Transformer 是一种神经网络架构，它通过注意力机制来表示序列中词元之间的关系。"},
+      {"id":2,"en":"Instead of processing words one at a time, it allows each position to gather information from other positions in parallel.","zh":"它允许每个位置并行地从其他位置获取信息，而不必逐个处理单词。"},
+      {"id":3,"en":"This short reading sample introduces the encoder-decoder structure and explains how scaled dot-product attention works.","zh":"这份简短的阅读示例介绍了编码器—解码器结构，并解释了缩放点积注意力的工作方式。"},
+      {"id":4,"en":"1 Introduction","zh":"1 引言","heading":true},
+      {"id":5,"en":"Language contains dependencies that can span many words: a pronoun may refer to a noun that appeared much earlier.","zh":"语言中的依赖关系可以跨越许多单词：一个代词可能指向很早之前出现的名词。"},
+      {"id":6,"en":"Attention creates a direct path between these positions, allowing the model to combine local details with wider context.","zh":"注意力在这些位置之间建立了直接连接，使模型能够将局部细节与更广泛的上下文结合起来。"},
+      {"id":7,"en":"The original architecture contains an encoder that reads the input and a decoder that generates the output.","zh":"原始架构包含一个读取输入的编码器，以及一个生成输出的解码器。"}
+    ]},
+    {"heading":"缩放点积注意力","sentences":[
+      {"id":0,"en":"2 Scaled Dot-Product Attention","zh":"2 缩放点积注意力","heading":true},
+      {"id":1,"en":"Each token is mapped to a query, a key, and a value, conventionally written as Q, K, and V.","zh":"每个词元都会映射为查询、键和值，通常分别记为 Q、K 和 V。"},
+      {"id":2,"en":"The dot product between a query and a key measures their compatibility.","zh":"查询与键之间的点积用来衡量二者的匹配程度。"},
+      {"id":3,"en":"Dividing the scores by the square root of the key dimension helps keep their magnitude manageable.","zh":"将分数除以键维度的平方根，有助于控制这些分数的数量级。"},
+      {"id":4,"en":"A softmax converts these scores into nonnegative weights that sum to one.","zh":"Softmax 将这些分数转换为非负权重，且权重之和为 1。"},
+      {"id":5,"en":"The weighted sum of values produces a context-sensitive representation for each query.","zh":"对值进行加权求和后，即可为每个查询得到一个与上下文相关的表示。"},
+      {"id":6,"en":"Figure 1 illustrates the flow from queries and keys to attention weights and the final output.","zh":"图 1 展示了从查询和键到注意力权重，再到最终输出的计算流程。"}
+    ]},
+    {"heading":"多头注意力","sentences":[
+      {"id":0,"en":"3 Multi-Head Attention","zh":"3 多头注意力","heading":true},
+      {"id":1,"en":"Multiple attention heads apply different learned projections to the same input.","zh":"多个注意力头对同一输入应用不同的可学习投影。"},
+      {"id":2,"en":"This allows the model to represent several kinds of relationships at the same time.","zh":"这使模型能够同时表示多种不同类型的关系。"},
+      {"id":3,"en":"The outputs of the heads are concatenated and passed through a final linear projection.","zh":"各个注意力头的输出会被拼接起来，然后经过最后一个线性投影。"},
+      {"id":4,"en":"Positional information is also needed because attention alone does not specify the order of the tokens.","zh":"模型还需要位置信息，因为仅靠注意力本身无法指明词元的顺序。"},
+      {"id":5,"en":"In practice, interpreting attention weights requires care: they describe one part of the computation rather than a complete explanation of the prediction.","zh":"在实践中，解读注意力权重需要谨慎：它们描述的是计算过程的一部分，而不是对预测结果的完整解释。"}
+    ]}
+  ]
+}

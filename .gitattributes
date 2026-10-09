@@ -1,0 +1,13 @@
+* text=auto
+*.cmd text eol=crlf
+*.command text eol=lf
+*.sh text eol=lf
+*.mjs text eol=lf
+*.md text eol=lf
+*.pdf binary
+*.bcmap binary
+*.wasm binary
+*.ico binary
+*.png binary
+*.ttf binary
+*.pfb binary
