@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知页 · 正在打开</title>
+<link rel="icon" href="/favicon.svg">
+<style>html,body{margin:0;height:100%}/*STARTUP_CSS*/</style>
+</head>
+<body>
+<div class="pl-splash" role="status" aria-live="polite">
+  <div class="pl-stage" aria-hidden="true">
+    <div class="pl-book">
+      <div class="pl-half pl-left"></div><div class="pl-half pl-right"></div>
+      <div class="pl-page" style="--i:0"></div><div class="pl-page" style="--i:1"></div><div class="pl-page" style="--i:2"></div>
+      <div class="pl-spine"></div>
+      <svg class="pl-leaf" viewBox="0 0 34 52"><path d="M6 50 C4 34 8 16 30 2 C33 22 26 40 6 50 Z"/><path d="M6 50 C12 36 18 22 27 8"/></svg>
+    </div>
+  </div>
+  <div class="pl-brand"><strong>知页</strong><span>Paperleaf</span></div>
+  <p class="pl-tagline">让理解，多一页。</p>
+  <div class="pl-progress" aria-hidden="true"><i></i></div>
+  <p class="pl-status" id="status">正在唤醒阅读空间…</p>
+</div>
+<script>
+// Shown while the local reader service is still starting; switches to the reader as soon as it answers.
+(function(){
+  var started=Date.now(),status=document.getElementById('status'),splash=document.querySelector('.pl-splash');
+  var steps=[[0,'正在唤醒阅读空间…'],[2500,'正在启动本地阅读服务…'],[9000,'正在准备页面，首次启动会稍久一些…'],[30000,'仍在启动，请再稍等片刻…']];
+  function tick(){
+    var elapsed=Date.now()-started;
+    if(elapsed>120000){status.className='pl-status pl-error';status.textContent='知页没有按时启动。请关闭此页后重新双击桌面图标；仍然失败时，查看应用文件夹 .sites-runtime 里的日志。';return;}
+    for(var i=steps.length-1;i>=0;i--)if(elapsed>=steps[i][0]){status.textContent=steps[i][1];break;}
+    fetch('/api/health',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(data){
+      if(data&&data.app==='zhiye'){status.textContent='准备好了，正在打开…';setTimeout(function(){location.replace(location.href);},350);}
+      else setTimeout(tick,600);
+    },function(){setTimeout(tick,600);});
+  }
+  setTimeout(tick,400);
+})();
+</script>
+</body>
+</html>

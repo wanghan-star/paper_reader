@@ -50,3 +50,14 @@ test('reading records keep translation, chat and the paper, and refuse unsafe na
     await store.remove(id);assert.deepEqual(await store.list(),[]);assert.equal(await store.read(id),null);
   }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+test('a parallel queue runs up to its limit, lets questions jump ahead, and refills as jobs finish',async()=>{
+  const releases=new Map(),started=[];
+  const q=new JobQueue(input=>{started.push(input.task);return new Promise(resolve=>releases.set(input.task,()=>resolve({content:input.task})));},2);
+  const jobs=['p1','p2','p3','p4'].map(task=>q.create({task}));
+  assert.deepEqual(started,['p1','p2']);assert.equal(q.view(jobs[2].id).status,'queued');
+  q.create({task:'chat'});
+  releases.get('p1')();await wait();
+  assert.deepEqual(started,['p1','p2','chat'],'the question runs before queued pages');
+  releases.get('p2')();await wait();assert.deepEqual(started,['p1','p2','chat','p3']);
+  assert.equal(q.view(jobs[0].id).result.content,'p1');q.close();
+});

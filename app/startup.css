@@ -1,0 +1,35 @@
+/* Launch animation. Shared by the local server's boot page (scripts/splash.html) and the in-app intro. */
+.pl-splash{--pl-paper:#fbfaf4;--pl-sheet:#fffefa;--pl-ink:#2b332e;--pl-muted:#8e978b;--pl-green:#345b48;--pl-leaf:#5f9a6e;--pl-line:#e3e7dc;
+  position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+  background:radial-gradient(ellipse at 50% 38%,#ffffff 0%,var(--pl-paper) 55%,#eef2e8 100%);color:var(--pl-ink);
+  font-family:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC",sans-serif;transition:opacity .55s ease,visibility .55s;overflow:hidden}
+.pl-splash.pl-leaving{opacity:0;visibility:hidden}
+@media(prefers-color-scheme:dark){.pl-splash{--pl-paper:#1c231f;--pl-sheet:#252e29;--pl-ink:#e4ebe2;--pl-muted:#93a093;--pl-green:#a9cdb2;--pl-leaf:#79b98a;--pl-line:#344038;background:radial-gradient(ellipse at 50% 38%,#26302a 0%,var(--pl-paper) 60%,#151a17 100%)}}
+.pl-splash::before{content:"";position:absolute;width:520px;height:520px;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-62%);background:radial-gradient(circle,color-mix(in srgb,var(--pl-leaf) 16%,transparent),transparent 65%);animation:pl-breathe 4.8s ease-in-out infinite}
+.pl-stage{position:relative;width:200px;height:140px;perspective:900px;margin-bottom:34px;animation:pl-rise .9s cubic-bezier(.2,.8,.2,1) both}
+.pl-book{position:absolute;inset:18px 10px 0;transform:rotateX(18deg);transform-style:preserve-3d}
+.pl-half,.pl-page{position:absolute;top:0;bottom:0;width:50%;background:var(--pl-sheet);border:1px solid var(--pl-line);
+  background-image:repeating-linear-gradient(to bottom,transparent 0 13px,var(--pl-line) 13px 14px);background-size:72% 100%;background-repeat:no-repeat;background-origin:content-box;padding:16px 12px}
+.pl-half.pl-left{left:0;border-radius:10px 2px 2px 10px;box-shadow:-8px 10px 24px #34512d14;background-position:right top}
+.pl-half.pl-right{right:0;border-radius:2px 10px 10px 2px;box-shadow:8px 10px 24px #34512d14}
+.pl-page{right:0;border-radius:2px 10px 10px 2px;transform-origin:left center;backface-visibility:visible;animation:pl-turn 3.6s cubic-bezier(.45,.05,.3,1) infinite;animation-delay:calc(var(--i) * .55s)}
+.pl-spine{position:absolute;left:50%;top:-2px;bottom:-2px;width:2px;margin-left:-1px;background:linear-gradient(var(--pl-line),var(--pl-muted),var(--pl-line));opacity:.6}
+.pl-leaf{position:absolute;left:50%;top:-38px;width:34px;height:52px;margin-left:-6px;transform-origin:6px 50px;animation:pl-sway 4s ease-in-out 1.2s infinite}
+.pl-leaf path{fill:var(--pl-leaf);fill-opacity:.85;stroke:var(--pl-green);stroke-width:1.6;stroke-linecap:round;stroke-dasharray:140;stroke-dashoffset:0;animation:pl-draw 1.4s ease .3s both}
+.pl-leaf path+path{fill:none;animation-delay:.9s}
+.pl-brand{display:flex;align-items:baseline;gap:12px;animation:pl-fade .8s ease .35s both}
+.pl-brand strong{font-size:34px;font-weight:600;letter-spacing:6px;color:var(--pl-green)}
+.pl-brand span{font-family:Georgia,"Times New Roman",serif;font-size:22px;color:var(--pl-muted);letter-spacing:.5px}
+.pl-tagline{margin:10px 0 0;font-size:15px;letter-spacing:4px;color:var(--pl-muted);animation:pl-fade .8s ease .6s both}
+.pl-progress{position:relative;width:180px;height:2px;margin-top:34px;border-radius:2px;background:var(--pl-line);overflow:hidden;animation:pl-fade .6s ease .8s both}
+.pl-progress i{position:absolute;top:0;bottom:0;width:38%;border-radius:2px;background:linear-gradient(90deg,transparent,var(--pl-green),transparent);animation:pl-slide 1.5s ease-in-out infinite}
+.pl-status{min-height:20px;margin:14px 0 0;font-size:13px;color:var(--pl-muted);letter-spacing:1px;animation:pl-fade .6s ease .9s both}
+.pl-status.pl-error{color:#b4553a;max-width:420px;text-align:center;line-height:1.8}
+@keyframes pl-turn{0%,8%{transform:rotateY(0)}46%,100%{transform:rotateY(-180deg)}}
+@keyframes pl-draw{from{stroke-dashoffset:140;fill-opacity:0}}
+@keyframes pl-sway{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(5deg)}}
+@keyframes pl-rise{from{opacity:0;transform:translateY(18px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes pl-fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pl-slide{from{left:-40%}to{left:100%}}
+@keyframes pl-breathe{0%,100%{opacity:.6;transform:translate(-50%,-62%) scale(.94)}50%{opacity:1;transform:translate(-50%,-62%) scale(1.04)}}
+@media(prefers-reduced-motion:reduce){.pl-splash *,.pl-splash::before{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important}}

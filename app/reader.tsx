@@ -13,6 +13,7 @@ import ReadingPages from "./reading-pages";
 import AppearanceDialog from "./appearance-dialog";
 import LessonView from "./lesson-view";
 import GuidePanel from "./guide-panel";
+import StartupSplash from "./startup-splash";
 import { useLinkedHighlight } from "./linked-highlight";
 import { deleteRecord, fetchPdf, hashBytes, listRecords, readRecord, savePdf, saveRecord, type PaperRecord, type RecordSummary } from "@/lib/records";
 import { instantVisual } from "@/lib/lesson-preview";
@@ -42,6 +43,8 @@ export default function Reader() {
   const [selection,setSelection]=useState<{text:string;x:number;y:number;page:number}|null>(null);
   const [appearanceOpen,setAppearanceOpen]=useState(false);
   const [pendingAuto,setPendingAuto]=useState<number|null>(null);
+  // Launched from the desktop icon: keep the opening animation until the last paper is back on screen.
+  const [intro,setIntro]=useState<"off"|"on"|"leaving">("off"),[booted,setBooted]=useState(false),introStart=useRef(0);
   const [recordId,setRecordId]=useState<string|null>(null),[records,setRecords]=useState<RecordSummary[]>([]),[saveState,setSaveState]=useState<"saved"|"saving"|"failed">("saved");
   const [navCollapsed,setNavCollapsed]=useState(false),[assistantWidth,setAssistantWidth]=useState(400);
   const saveLayout=(nav:boolean,width:number)=>{try{localStorage.setItem("zhiye-layout",JSON.stringify({nav,width}));}catch{/* storage may be unavailable */}};
@@ -79,10 +82,16 @@ export default function Reader() {
     const statusAbort=new AbortController();fetch("/api/codex/status",{signal:statusAbort.signal}).then(async r=>{if(!r.ok)throw new Error();return await r.json() as {available:boolean};}).then(async s=>{setCodexReady(s.available);if(s.available){const r=await fetch("/api/codex/models",{signal:statusAbort.signal});if(r.ok){const data=await r.json() as {models:{id:string;image:boolean;isDefault?:boolean}[]};const supported=data.models.filter(m=>m.image);setSettings(current=>{if(supported.some(m=>m.id===current.codexModel))return current;const model=supported.find(m=>m.isDefault)||supported[0];if(!model)return current;const next={...current,codexModel:model.id};try{localStorage.setItem("zhiye-settings",JSON.stringify(next));}catch{}return next;});}}}).catch(e=>{if(e.name!=="AbortError")setCodexReady(ready=>ready===true?true:false);});
     let alive=true;const version=epoch.current;
     // Continue with the paper that was open last time; the sample is only for a first visit.
-    listRecords().then(list=>{if(!alive)return;setRecords(list);if(list[0]&&version===epoch.current)void openRecord(list[0].id,true);}).catch(()=>{/* the reader still works without the record service */});
+    try{const url=new URL(location.href);if(url.searchParams.has("launch")){introStart.current=Date.now();setIntro("on");url.searchParams.delete("launch");history.replaceState(null,"",url.pathname+url.search+url.hash);}}catch{/* plain start */}
+    listRecords().then(async list=>{if(!alive)return;setRecords(list);if(list[0]&&version===epoch.current)await openRecord(list[0].id,true);}).catch(()=>{/* the reader still works without the record service */}).finally(()=>{if(alive)setBooted(true);});
     loadPdf("/sample.pdf").then(pdf=>{if(alive&&version===epoch.current){docRef.current=pdf;setDoc(pdf);}else void pdf.destroy();}).catch(()=>{if(alive&&version===epoch.current)notify("示例 PDF 加载失败，你仍可以上传自己的论文。",true);});
     return()=>{alive=false;statusAbort.abort();cancelAnimationFrame(scrollFrame.current);translationController.current?.abort();chatController.current?.abort();guideController.current?.abort();void docRef.current?.destroy();};
   },[notify]);
+  useEffect(()=>{
+    if(intro!=="on"||!booted||!doc||loading)return;
+    const timer=setTimeout(()=>{setIntro("leaving");setTimeout(()=>setIntro("off"),600);},Math.max(250,1800-(Date.now()-introStart.current)));
+    return()=>clearTimeout(timer);
+  },[intro,booted,doc,loading]);
   useEffect(()=>{if(!toast)return;const id=setTimeout(()=>setToast(null),6000);return()=>clearTimeout(id);},[toast]);
   useEffect(()=>{if(!continuous)reader.current?.scrollTo({top:0});setSelection(null);},[page,tab,continuous,settings.readingSpan]);
   useEffect(()=>{if(continuous)requestAnimationFrame(()=>reader.current?.querySelector<HTMLElement>(`[data-paper-page="${page}"]`)?.scrollIntoView({block:"start"}));},[tab,continuous]);
@@ -95,47 +104,74 @@ export default function Reader() {
     if(loading||translation)return;if(!requireLogin())return;
     const pdf=docRef.current;if(!pdf){notify("PDF 仍在加载，请稍后再试。",true);return;}
     const controller=new AbortController();translationController.current=controller;const version=epoch.current;
-    const targets=all?pages.map((_,i)=>i):forceOCR||continuous||tab==="pdf"?[focusPage-1]:shown;
+    const single=forceOCR||continuous||tab==="pdf";
+    const anchor=single?focusPage-1:shown[0];
+    // Pages on screen first, then onwards from where the reader is, then the pages before it.
+    const rank=(i:number)=>!single&&shown.includes(i)?-1:i>=anchor?i-anchor:pages.length+i;
+    const targets=all?pages.map((_,i)=>i).sort((a,b)=>rank(a)-rank(b)):single?[focusPage-1]:shown;
     setTab("bilingual");setTranslation("正在准备翻译…");const failedPages:number[]=[];
-    try{
-      for(const index of targets){
-        if(controller.signal.aborted)throw new DOMException("取消","AbortError");
-        let p=pages[index];
-        if((forceOCR&&index===focusPage-1)||p.needsVision||p.text.replace(/\s/g,"").length<35){
-          setTranslation(`正在识别第 ${index+1} / ${pages.length} 页 · 正文、公式与图表…`);
-          const image=await pageImage(pdf,index+1);if(controller.signal.aborted)throw new DOMException("取消","AbortError");
-          let result:Awaited<ReturnType<typeof api>>|undefined;
-          for(let attempt=0;attempt<2&&!result?.blocks;attempt++){
-            if(attempt)setTranslation(`第 ${index+1} 页识别未完成，正在重试…`);
-            try{result=await api("layout",{image,context:p.text,page:index+1},controller.signal);}
-            // Account, model and connection problems affect every page, so they stop the run at once.
-            catch(e){if((e as Error).name==="AbortError"||/额度|登录|未检测到|模型|本地服务|连接/.test((e as Error).message))throw e;}
-            if(epoch.current!==version)return;
-          }
-          if(!result?.blocks){if(targets.length===1)throw new Error(`第 ${index+1} 页识别未完成，原页已保留，请重新识别。`);failedPages.push(index+1);continue;}
-          p=pageFromBlocks(result.blocks,p);
-          setPages(prev=>prev.map((value,i)=>i===index?p:value));
-          // Paragraph ids changed, so earlier difficult-spot markers no longer match.
-          guideController.current?.abort();setGuides(prev=>{const next={...prev};delete next[index];return next;});
+    const queue=[...targets],active=new Map<number,string>();let finished=0,fatal:Error|null=null;
+    const report=()=>{
+      if(epoch.current!==version)return;
+      const working=[...active].sort((x,y)=>x[0]-y[0]).map(([i,state])=>`第 ${i+1} 页${state}`).join("，");
+      setTranslation(`${targets.length>1?`已完成 ${finished}/${targets.length} 页 · `:""}${working||"正在收尾…"}`);
+    };
+    const processPage=async(index:number)=>{
+      let p=pages[index];
+      if((forceOCR&&index===focusPage-1)||p.needsVision||p.text.replace(/\s/g,"").length<35){
+        active.set(index,"识别正文、公式与图表");report();
+        const image=await pageImage(pdf,index+1);controller.signal.throwIfAborted();
+        let result:Awaited<ReturnType<typeof api>>|undefined;
+        for(let attempt=0;attempt<2&&!result?.blocks;attempt++){
+          if(attempt){active.set(index,"识别未完成，正在重试");report();}
+          try{result=await api("layout",{image,context:p.text,page:index+1},controller.signal);}
+          // Account, model and connection problems affect every page, so they stop the run at once.
+          catch(e){if((e as Error).name==="AbortError"||/额度|登录|未检测到|模型|本地服务|连接/.test((e as Error).message))throw e;}
+          if(epoch.current!==version)return;
         }
-        const batches=translationBatches(p.sentences);
-        for(let b=0;b<batches.length;b++){
-          const status=`正在翻译第 ${index+1} / ${pages.length} 页 · ${b+1}/${batches.length} 批`;
-          setTranslation(status);
-          const apply=(rows:{id:number;zh:string}[])=>{
-            if(epoch.current!==version)return;
-            const lookup=new Map(rows.map(r=>[r.id,r.zh]));
-            setPages(prev=>prev.map((value,i)=>i===index?{...value,sentences:value.sentences.map(s=>lookup.has(s.id)?{...s,zh:lookup.get(s.id)}:s)}:value));
-          };
-          const result=await callCodex("translate",{sentences:batches[b].map(({id,en})=>({id,en}))},settings.codexModel,controller.signal,progress=>{
-            if(epoch.current!==version||!progress.translation)return;
-            const {translations,completed,total,retrying}=progress.translation;
-            apply(translations);
-            setTranslation(`${status} · ${completed}/${total} 句${retrying?" · 正在自动补译":""}`);
-          });if(epoch.current!==version)return;
-          apply(result.translations);
-        }
+        if(!result?.blocks)throw new Error(`第 ${index+1} 页识别未完成，原页已保留，请重新识别。`);
+        p=pageFromBlocks(result.blocks,p);
+        setPages(prev=>prev.map((value,i)=>i===index?p:value));
+        // Paragraph ids changed, so earlier difficult-spot markers no longer match.
+        guideController.current?.abort();setGuides(prev=>{const next={...prev};delete next[index];return next;});
       }
+      const batches=translationBatches(p.sentences);
+      for(let b=0;b<batches.length;b++){
+        const state=`翻译 ${b+1}/${batches.length} 批`;active.set(index,state);report();
+        const apply=(rows:{id:number;zh:string}[])=>{
+          if(epoch.current!==version)return;
+          const lookup=new Map(rows.map(r=>[r.id,r.zh]));
+          setPages(prev=>prev.map((value,i)=>i===index?{...value,sentences:value.sentences.map(s=>lookup.has(s.id)?{...s,zh:lookup.get(s.id)}:s)}:value));
+        };
+        const result=await callCodex("translate",{sentences:batches[b].map(({id,en})=>({id,en}))},settings.codexModel,controller.signal,progress=>{
+          if(epoch.current!==version||!progress.translation)return;
+          const {translations,completed,total,retrying}=progress.translation;
+          apply(translations);active.set(index,`${state} · ${completed}/${total} 句${retrying?" · 自动补译":""}`);report();
+        });if(epoch.current!==version)return;
+        apply(result.translations);
+      }
+    };
+    // Up to three pages are in flight at once; the local service runs their Codex sessions side by side.
+    const worker=async()=>{
+      while(queue.length&&!controller.signal.aborted){
+        const index=queue.shift()!;
+        try{await processPage(index);}
+        catch(e){
+          const error=e as Error;
+          if(error.name==="AbortError"){if(!fatal)break;}
+          // One bad page is skipped in a longer run; anything else, or a lone page, stops everything.
+          else if(targets.length>1&&!/额度|登录|未检测到|模型|本地服务|连接/.test(error.message))failedPages.push(index+1);
+          else if(!fatal){fatal=error;controller.abort();}
+        }
+        finally{active.delete(index);finished++;report();}
+      }
+    };
+    try{
+      await Promise.all(Array.from({length:Math.min(3,targets.length)},worker));
+      if(epoch.current!==version)return;
+      if(fatal)throw fatal;
+      controller.signal.throwIfAborted();
+      failedPages.sort((x,y)=>x-y);
       if(failedPages.length)notify(`其余页面已完成；第 ${failedPages.join("、")} 页识别未完成，原页已保留，可在该页点击重新识别。`,true);else notify(all?"全文翻译完成，可以慢慢读了。":"当前页翻译完成。");
     }catch(e){if((e as Error).name==="AbortError")notify("翻译已停止，完成的内容已保留。");else notify((e as Error).message,true);}
     finally{if(version===epoch.current){setTranslation("");translationController.current=null;}}
@@ -160,7 +196,7 @@ export default function Reader() {
   };
   useEffect(()=>{if(pendingAuto===null||loading)return;setPendingAuto(null);if(pendingAuto===epoch.current&&settings.autoTranslate)void translate(true);},[pendingAuto,loading]);
   const showPaper=(nextDoc:PDFDocumentProxy,id:string|null,record:PaperRecord)=>{
-    const previous=docRef.current;docRef.current=nextDoc;setDoc(nextDoc);setRecordId(id);setSaveState("saved");setTitle(record.title);setFilename(record.filename);setPages(record.pages);setPage(Math.max(1,Math.min(record.pages.length,record.page||1)));setDemo(false);setTab("bilingual");
+    const previous=docRef.current;docRef.current=nextDoc;setDoc(nextDoc);setRecordId(id);setSaveState("saved");setTitle(record.title.replace(/<\/?[a-z][^>]*>/gi,"").replace(/\s+/g," ").trim()||record.filename);setFilename(record.filename);setPages(record.pages);setPage(Math.max(1,Math.min(record.pages.length,record.page||1)));setDemo(false);setTab("bilingual");
     messageId.current=record.messages.reduce((max,m)=>Math.max(max,m.id),0);setMessages(record.messages);setGuides(record.guides||{});setGuideOpen(true);setAttachment(null);setSelection(null);setNavOpen(false);
     // Let the current viewer cancel rendering before destroying its document.
     setTimeout(()=>void previous?.destroy(),100);
@@ -280,7 +316,7 @@ export default function Reader() {
         <div className="document-action-bar"><div>{isDemo?<span className="demo-tag">体验示例</span>:<span className="file-tag">PDF</span>}<span>{isDemo?"上传你的论文，开启真正的阅读":"中文在上 · 英文在下 · 图表保留"}</span></div><div className="translation-actions">{translation?<button className="text-button" onClick={()=>translationController.current?.abort()}><Square size={12}/>停止翻译</button>:<><button className="text-button" disabled={loading} onClick={()=>void translate(false)}><Sparkles size={13}/>翻译当前页</button><details className="translation-menu"><summary aria-label="更多翻译选项"><ChevronDown size={15}/></summary><div><button onClick={e=>{e.currentTarget.closest("details")?.removeAttribute("open");void translate(true);}}>翻译全文</button><button onClick={e=>{e.currentTarget.closest("details")?.removeAttribute("open");void translate(false,true);}}>视觉识别并翻译此页</button></div></details></>}</div></div>
         {translation&&<div className="translation-status" role="status"><LoaderCircle size={14} className="spin"/>{translation}</div>}
         <div className="reader-scroll" ref={reader} onMouseUp={selectText} onTouchEnd={()=>setTimeout(selectText,100)} onScroll={onReadingScroll}>
-          {tab==="bilingual"?<article className="paper-article" style={{fontSize:`${settings.textSize*zoom/100}px`}}><div className="paper-kicker"><span>{isDemo?"PAPERLEAF READING SAMPLE":"YOUR READING SPACE"}</span><span>{continuous?"连续阅读":`原文 ${shown[0]+1}–${shown.at(-1)!+1} 页`}</span></div>{(continuous||groupStart===1)&&<><h1>{title}</h1>{isDemo&&<p className="paper-subtitle">{demo.subtitle}</p>}<div className="paper-meta"><span><FileText size={12}/>{isDemo?"原创阅读示例":"上传的论文"}</span><span>{continuous?"逐页向下阅读":`每个阅读页合并 ${settings.readingSpan} 页原文`}</span></div><div className="paper-rule"/></>}
+          {tab==="bilingual"?<article className="paper-article" style={{fontSize:`${settings.textSize*zoom/100}px`}}><div className="paper-kicker"><span>{isDemo?"PAPERLEAF READING SAMPLE":"YOUR READING SPACE"}</span><span>{continuous?"连续阅读":`原文 ${shown[0]+1}–${shown.at(-1)!+1} 页`}</span></div>{(continuous||groupStart===1)&&<><h1 className={title.length>90?"long-title":undefined}>{title}</h1>{isDemo&&<p className="paper-subtitle">{demo.subtitle}</p>}<div className="paper-meta"><span><FileText size={12}/>{isDemo?"原创阅读示例":"上传的论文"}</span><span>{continuous?"逐页向下阅读":`每个阅读页合并 ${settings.readingSpan} 页原文`}</span></div><div className="paper-rule"/></>}
             <ReadingPages pages={pages} indexes={shown} continuous={continuous} pdf={false} doc={doc} zoom={zoom} isDemo={isDemo} attachText={attachText} attachImage={attachImage} onOriginal={original} onOCR={n=>{goToPage(n);void translate(false,true,n);}} busy={!!translation||loading}/>
           </article>:<ReadingPages pages={pages} indexes={shown} continuous={continuous} pdf={true} doc={doc} zoom={zoom} isDemo={isDemo} attachText={attachText} attachImage={attachImage} onOriginal={original} onOCR={n=>void translate(false,true,n)} busy={!!translation||loading}/>}
         </div>
@@ -298,6 +334,7 @@ export default function Reader() {
     {toast&&<div className={`toast ${toast.error?"error":""}`} role={toast.error?"alert":"status"}>{toast.error?<CircleHelp size={17}/>:<Check size={17}/>}<span>{toast.message}</span><button onClick={()=>setToast(null)} aria-label="关闭提示"><X size={14}/></button></div>}
     {dragging&&<div className="drop-overlay"><div><Upload size={40}/><h2>把论文放在这里</h2><p>PDF · 文字版或扫描版 · 最大 60 MB</p></div></div>}
     {loading&&<div className="loading-bar" role="status">正在读取论文并识别页面<LoaderCircle size={14} className="spin"/></div>}
+    {intro!=="off"&&<StartupSplash leaving={intro==="leaving"} status={booted?"准备好了":records.length?"正在恢复上次的阅读…":"正在打开阅读空间…"}/>}
     {appearanceOpen&&<AppearanceDialog settings={settings} onSave={s=>saveSettings(s,"阅读偏好已保存")} onClose={closeAppearance}/>}
     {settingsOpen&&<SettingsDialog settings={settings} onSave={saveSettings} onStatus={setCodexReady} onClose={closeSettings}/>}
   </div>;

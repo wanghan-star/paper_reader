@@ -154,23 +154,30 @@ async function executeOnce(input,signal){
 }
 
 export class JobQueue{
-  constructor(run=executeTask){this.run=run;this.jobs=new Map();this.pending=[];this.active=null;}
+  // `limit` jobs run side by side; each one is its own Codex session, so pages can be recognised in parallel.
+  constructor(run=executeTask,limit=1){this.run=run;this.limit=limit;this.jobs=new Map();this.pending=[];this.running=new Set();}
+  get active(){return this.running.size>0;}
   create(input){
-    if(this.pending.length>=6)invalid('等待中的任务较多，请稍后重试。');
+    if(this.pending.length>=16)invalid('等待中的任务较多，请稍后重试。');
     for(const [id,job] of this.jobs)if(Date.now()-job.created>30*60*1000&&!['running','queued'].includes(job.status))this.jobs.delete(id);
     if(this.jobs.size>=200)invalid('当前阅读请求过多，请重启知页或稍后重试。');
-    const job={id:randomUUID(),status:'queued',created:Date.now(),controller:new AbortController(),input};this.jobs.set(job.id,job);this.pending.push(job);void this.drain();return this.view(job.id);
+    const job={id:randomUUID(),status:'queued',created:Date.now(),controller:new AbortController(),input};this.jobs.set(job.id,job);
+    // A question from the reader goes ahead of queued translation work.
+    if(input?.task==='chat')this.pending.unshift(job);else this.pending.push(job);
+    this.drain();return this.view(job.id);
   }
   view(id){const j=this.jobs.get(id);return j?{id:j.id,status:j.status,...(j.result?{result:j.result}:{}),...(j.error?{error:j.error}:{}),...(j.partial?{partial:j.partial}:{}),...(j.visual?{visual:j.visual}:{}),...(j.translation?{translation:j.translation}:{})}:null;}
   cancel(id){const j=this.jobs.get(id);if(j&&['queued','running'].includes(j.status)){j.status='cancelled';j.controller.abort();delete j.input;}return this.view(id);}
   close(){for(const id of this.jobs.keys())this.cancel(id);}
-  async drain(){
-    if(this.active)return;
-    while(this.pending.length){
-      const j=this.pending.shift();if(j.status==='cancelled')continue;this.active=j;j.status='running';
-      try{const result=await this.run(j.input,j.controller.signal,p=>{if(j.status==='running'){if(p.content)j.partial=p.content;if(p.visual)j.visual=p.visual;if(p.translation)j.translation=p.translation;}});if(j.status!=='cancelled'){j.result=result;j.status='completed';delete j.partial;delete j.visual;}}
-      catch(e){if(j.status!=='cancelled'){j.status='failed';j.error=e.message||'Codex 调用失败，请重试。';}}
-      finally{delete j.input;this.active=null;const expiry=setTimeout(()=>this.jobs.delete(j.id),30*60*1000);expiry.unref();}
+  drain(){
+    while(this.running.size<this.limit&&this.pending.length){
+      const j=this.pending.shift();if(j.status==='cancelled')continue;
+      this.running.add(j);j.status='running';void this.execute(j);
     }
+  }
+  async execute(j){
+    try{const result=await this.run(j.input,j.controller.signal,p=>{if(j.status==='running'){if(p.content)j.partial=p.content;if(p.visual)j.visual=p.visual;if(p.translation)j.translation=p.translation;}});if(j.status!=='cancelled'){j.result=result;j.status='completed';delete j.partial;delete j.visual;}}
+    catch(e){if(j.status!=='cancelled'){j.status='failed';j.error=e.message||'Codex 调用失败，请重试。';}}
+    finally{delete j.input;this.running.delete(j);const expiry=setTimeout(()=>this.jobs.delete(j.id),30*60*1000);expiry.unref();this.drain();}
   }
 }

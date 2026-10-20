@@ -4,7 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {codexStatus,codexModels,JobQueue,validateTask} from './codex-bridge.mjs';
+import {codexStatus,codexModels,executeTask,JobQueue,validateTask} from './codex-bridge.mjs';
 import {closeChatServer} from './codex-chat.mjs';
 import {stopOwnedProcess} from './codex-discovery.mjs';
 import {createRecordStore} from './record-store.mjs';
@@ -14,7 +14,8 @@ const runtime=path.join(app,'.sites-runtime');fs.mkdirSync(runtime,{recursive:tr
 const port=Number(process.env.PAPERLEAF_PORT||4399),backendPort=Number(process.env.PAPERLEAF_WORKER_PORT||4401),origin=`http://127.0.0.1:${port}`;
 if(![port,backendPort].every(p=>Number.isInteger(p)&&p>=1024&&p<=65535)||port===backendPort)throw new Error('Invalid local ports');
 const installation=createHash('sha256').update(app).digest('hex').slice(0,12);
-const queue=new JobQueue();
+// Three Codex sessions at once: pages are recognised in parallel without tripping rate limits easily.
+const queue=new JobQueue(executeTask,Math.max(1,Math.min(6,Number(process.env.PAPERLEAF_PARALLEL)||3)));
 // Reading records live beside the app, so they survive restarts and travel with the folder.
 const records=createRecordStore(process.env.PAPERLEAF_RECORDS||path.join(app,'records'));
 const readBody=async(req,limit)=>{let size=0;const chunks=[];for await(const chunk of req){size+=chunk.length;if(size>limit)throw new Error('内容过大，无法保存。');chunks.push(chunk);}return Buffer.concat(chunks);};
@@ -22,6 +23,11 @@ const out=fs.openSync(path.join(runtime,'worker.stdout.log'),'a'),err=fs.openSyn
 const worker=spawn(process.execPath,[path.join(app,'node_modules','wrangler','bin','wrangler.js'),'dev','--config',path.join(app,'dist','server','wrangler.json'),'--local','--persist-to',path.join(app,'.wrangler','state'),'--ip','127.0.0.1','--port',String(backendPort),'--inspector-port','0'],{cwd:app,windowsHide:true,stdio:['ignore',out,err],env:{...process.env,WRANGLER_SEND_METRICS:'false',CLOUDFLARE_CF_FETCH_ENABLED:'false',WRANGLER_WRITE_LOGS:'false',WRANGLER_REGISTRY_PATH:path.join(runtime,'registry'),MINIFLARE_REGISTRY_PATH:path.join(runtime,'miniflare')}});
 fs.closeSync(out);fs.closeSync(err);
 let stopping=false;
+// Until the page worker answers, page requests get the launch animation instead of an error.
+let workerReady=false;
+const probe=setInterval(async()=>{try{const r=await fetch(`http://127.0.0.1:${backendPort}/api/health`,{signal:AbortSignal.timeout(1500)});if(r.ok){workerReady=true;clearInterval(probe);}}catch{/* still starting */}},400);probe.unref();
+let splashPage=null;
+const splash=()=>splashPage??=fs.readFileSync(path.join(app,'scripts','splash.html'),'utf8').replace('/*STARTUP_CSS*/',()=>{try{return fs.readFileSync(path.join(app,'app','startup.css'),'utf8');}catch{return '';}});
 worker.on('error',()=>{console.error('Unable to start local reader worker.');process.exitCode=1;shutdown();});
 worker.on('exit',()=>{if(!stopping){process.exitCode=1;shutdown();}});
 const json=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));};
@@ -81,6 +87,9 @@ const server=http.createServer(async(req,res)=>{
       json(res,404,{error:'Codex 接口不存在。'});
     }catch(e){json(res,400,{error:e.message||'Codex 请求失败。'});}
     return;
+  }
+  if(!workerReady&&req.method==='GET'&&!url.pathname.startsWith('/api/')&&(req.headers.accept||'').includes('text/html')){
+    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(splash());return;
   }
   // Validate the local origin before forwarding frontend requests.
   const headers={...req.headers,host:`127.0.0.1:${backendPort}`};
