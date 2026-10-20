@@ -29,3 +29,24 @@ test('queue runs one inference at a time, honours pending cancellation, and rele
 test('inference failures return a failed job and allow the next question',async()=>{
   const q=new JobQueue(async input=>{if(input.task==='fail')throw new Error('network failed');return {content:'answer'};});const failed=q.create({task:'fail'}),next=q.create({task:'chat'});await wait();assert.equal(q.view(failed.id).status,'failed');assert.equal(q.view(failed.id).error,'network failed');assert.equal(q.view(next.id).result.content,'answer');assert.ok(!JSON.stringify(q.view(next.id)).includes('controller'));q.close();
 });
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {createRecordStore} from '../scripts/record-store.mjs';
+test('reading records keep translation, chat and the paper, and refuse unsafe names',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'paperleaf-records-test-'));
+  try{
+    const store=createRecordStore(path.join(root,'records')),id='0123456789abcdef0123456789abcdef';
+    assert.deepEqual(await store.list(),[]);assert.equal(await store.read(id),null);
+    const pages=[{text:'A. B.',heading:'Intro',sentences:[{id:0,en:'A.',zh:'甲。'},{id:1,en:'B.'}]}];
+    const meta=await store.save(id,{title:'Paper',filename:'p.pdf',page:1,pages,messages:[{id:1,role:'user',content:'问',page:1}],guides:{0:{status:'done',points:[]}}});
+    assert.deepEqual({...meta,updated:0},{id,title:'Paper',filename:'p.pdf',pageCount:1,total:2,translated:1,messages:1,updated:0});
+    const record=await store.read(id);assert.deepEqual(record.pages,pages);assert.equal(record.messages[0].content,'问');
+    await store.savePdf(id,Buffer.from('%PDF-1.7 demo'));assert.equal((await store.openPdf(id)).size,13);(await store.openPdf(id)).stream.destroy();
+    await assert.rejects(store.savePdf(id,Buffer.from('not a pdf')));
+    assert.deepEqual((await store.list()).map(r=>r.id),[id]);
+    for(const bad of ['../secret','0123','0123456789ABCDEF0123456789abcdef','0123456789abcdef0123456789abcde/'])await assert.rejects(store.read(bad));
+    await assert.rejects(store.save(id,{pages:[]}));
+    await store.remove(id);assert.deepEqual(await store.list(),[]);assert.equal(await store.read(id),null);
+  }finally{await fs.rm(root,{recursive:true,force:true});}
+});

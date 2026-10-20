@@ -6,7 +6,8 @@ import type { PaperPage,Sentence } from "@/lib/paper";
 import RichText from "./rich-text";
 import PdfViewer from "./pdf-viewer";
 import PaperVisual from './paper-visual';
-import {normalizeMath} from '@/lib/math';
+import {katexMacros,normalizeMath} from '@/lib/math';
+import katex from 'katex';
 
 function LazySection({children,index,enabled,estimate}:{children:ReactNode;index:number;enabled:boolean;estimate:number}){
   const element=useRef<HTMLElement>(null);const [near,setNear]=useState(!enabled),[height,setHeight]=useState(estimate);
@@ -24,11 +25,13 @@ function ContentBlock({sentence:s,index,doc,attachText,attachImage}:{sentence:Se
   const visual=doc&&s.box?<PaperVisual doc={doc} page={index+1} box={s.box} label={s.kind==='equation'?'公式原图':s.kind==='table'?'论文表格':s.kind==='figure'?'论文图表':'含公式段落原图'} onExplain={image=>attachImage(image,index+1)}/>:null;
   if(s.kind==='equation'){
     const normalized=normalizeMath(s.en),formula=normalized.includes('$')?normalized:`$$${normalized}$$`;
-    return <div className="paper-equation"><div className="equation-tools"><span>公式 · 保留数学表达式</span>{!s.uncertain&&<button onClick={()=>attachText(`请结合论文逐步解释公式：${s.en}`,index+1)}><MessageSquareText size={14}/>解释公式</button>}</div>{s.uncertain?visual:<><RichText>{formula}</RichText>{visual&&<Reveal title="核对公式原图" className="formula-original">{visual}</Reveal>}</>}</div>;
+    // A formula the renderer cannot typeset is shown as its original image rather than as an error message.
+    let broken=false;if(!s.uncertain&&visual){try{katex.renderToString(formula.replace(/^\s*\$\$?|\$\$?\s*$/g,''),{displayMode:true,throwOnError:true,strict:false,trust:false,maxExpand:1000,macros:{...katexMacros}});}catch{broken=true;}}
+    return <div className="paper-equation" data-block={s.id}><div className="equation-tools"><span>公式 · 保留数学表达式</span>{!s.uncertain&&<button onClick={()=>attachText(`请结合论文逐步解释公式：${s.en}`,index+1)}><MessageSquareText size={14}/>解释公式</button>}</div>{s.uncertain?visual:broken?<>{visual}<p className="visual-hint">这条公式无法可靠排版，已显示论文原图。</p></>:<><RichText>{formula}</RichText>{visual&&<Reveal title="核对公式原图" className="formula-original">{visual}</Reveal>}</>}</div>;
   }
   if(s.uncertain&&visual)return <>{visual}<p className="visual-hint">这一处字迹尚未确认，已保留原图，可框选后提问。</p></>;
   const imageBlock=s.kind==='figure'||s.kind==='table';
-  return <>{imageBlock&&visual}<div className={`sentence-pair ${s.heading?"heading-pair":""} ${imageBlock?"caption-pair":""}`}>
+  return <>{imageBlock&&visual}<div data-block={s.id} className={`sentence-pair ${s.heading?"heading-pair":""} ${imageBlock?"caption-pair":""}`}>
     <div className={`sentence-zh ${!s.zh?"untranslated":""}`}><span className="language-mark">中</span><div>{s.zh?<RichText>{s.zh}</RichText>:<span>待翻译<span className="untranslated-hint"> · 点击上方翻译按钮</span></span>}</div></div>
     <div className="sentence-en"><span className="language-mark">EN</span><div><RichText>{s.en}</RichText></div><button className="sentence-help" aria-label={`解释第 ${s.id+1} 段 · 原文第 ${index+1} 页`} title="解释这段文字" onClick={()=>attachText(s.en,index+1)}><MessageSquareText size={14}/></button></div>
     {!imageBlock&&visual&&<Reveal title="核对本段公式原图" className="formula-original">{visual}</Reveal>}

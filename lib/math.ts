@@ -1,8 +1,11 @@
 /** Convert common AI LaTeX delimiters before Markdown consumes their backslashes. */
+// Commands that models copy from paper sources but KaTeX does not provide.
+export const katexMacros={"\\bm":"\\boldsymbol{#1}","\\mathbbm":"\\mathbb{#1}","\\mathds":"\\mathbb{#1}","\\textsc":"\\text{#1}","\\eqref":"(\\text{#1})","\\ensuremath":"#1"};
 export function normalizeMath(source:string):string {
   return source.split(/(```[\s\S]*?```|`[^`\n]*`)/g).map((part,index)=>{
     if(index%2)return part;
     const normalized=part
+      .replace(/\\label\{[^{}]*\}|\\(?:nonumber|notag)\b/g,'')
       .replace(/\\\[([\s\S]*?)\\\]/g,(_,math:string)=>'\n\n$$\n'+math.trim()+'\n$$\n\n')
       .replace(/\\\(([\s\S]*?)\\\)/g,(_,math:string)=>'$'+math.trim()+'$');
     const repaired=normalized.split(/(\$\$[\s\S]*?\$\$|\$(?:\\.|[^$\n])+\$)/g).map((fragment,k)=>k%2?fragment:fragment

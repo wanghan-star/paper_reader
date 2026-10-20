@@ -13,13 +13,20 @@ export function parsePageLayout(content){
   const fail=()=>{throw new Error('页面结构识别未完成，原页已保留。请重新识别此页或切换模型后重试。');};
   let data;try{data=JSON.parse(content.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''));}catch{fail();}
   if(!Array.isArray(data?.blocks)||data.blocks.length>100)fail();
-  const blocks=data.blocks.map(block=>{
-    if(!['heading','paragraph','equation','figure','table'].includes(block?.type)||typeof block.en!=='string'||typeof block.zh!=='string'||block.en.length>12000||block.zh.length>20000)fail();
-    const b=block.box;
-    if(!b||!['x','y','width','height'].every(k=>Number.isFinite(b[k]))||b.x<0||b.y<0||b.x>=1000||b.y>=1000||b.width<=0||b.height<=0||b.width>1000||b.height>1000)fail();
-    if(['heading','paragraph'].includes(block.type)&&!block.en.trim())fail();
-    return {type:block.type,en:block.en.trim(),zh:block.zh.trim(),box:{x:b.x,y:b.y,width:Math.min(b.width,1000-b.x),height:Math.min(b.height,1000-b.y)}};
-  });
+  // The model's coordinates and fields are approximate: repair what can be repaired and drop only the broken block.
+  const blocks=[];
+  for(const block of data.blocks){
+    if(!['heading','paragraph','equation','figure','table'].includes(block?.type)||typeof block.en!=='string'||block.en.length>12000||(block.zh!=null&&typeof block.zh!=='string')||(block.zh||'').length>20000)continue;
+    const text=['heading','paragraph'].includes(block.type);
+    if(text&&!block.en.trim())continue;
+    const b=block.box,finite=b&&['x','y','width','height'].every(k=>Number.isFinite(b[k]));
+    let box;
+    if(finite&&b.width>0&&b.height>0&&b.x<1000&&b.y<1000){const x=Math.max(0,b.x),y=Math.max(0,b.y);box={x,y,width:Math.min(b.width-(x-b.x),1000-x),height:Math.min(b.height-(y-b.y),1000-y)};}
+    // Text survives without a usable region; a figure or formula image cannot be shown without one.
+    if(!box||box.width<=0||box.height<=0){if(!text&&!(block.type==='equation'&&block.en.trim()))continue;box={x:0,y:0,width:1000,height:1000};}
+    blocks.push({type:block.type,en:block.en.trim(),zh:(block.zh||'').trim(),box});
+  }
+  if(data.blocks.length&&!blocks.length)fail();
   if(JSON.stringify(blocks).length>200000)fail();
   return {blocks};
 }

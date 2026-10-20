@@ -8,3 +8,5 @@
 .page-recognition{padding:15px 18px;border:1px solid var(--line);border-radius:10px;background:var(--surface);margin-bottom:15px}.page-recognition h2{font-size:18px;margin:0 0 7px;color:var(--ink)}.page-recognition p{font-size:13px;line-height:1.8;margin:0 0 12px;color:var(--secondary-ink)}.page-recognition button{font-size:14px}
 .original-page-details{margin:16px 0}.caption-pair .sentence-en{font-size:.92em}.caption-pair .sentence-zh{font-size:.95em}.paper-equation .visual-label{margin-bottom:5px}
 @media(max-width:720px){.paper-visual{padding:10px}.visual-tools{gap:10px;font-size:12px}.visual-tools button{font-size:12px}.paper-equation{padding:12px 10px}.visual-dialog{padding:14px}.page-recognition{padding:12px}}
+/* The sentence matching the current selection in the other language. */
+::highlight(linked-sentence){background-color:rgba(232,178,58,.38)}

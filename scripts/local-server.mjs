@@ -7,6 +7,7 @@ import {createHash} from 'node:crypto';
 import {codexStatus,codexModels,JobQueue,validateTask} from './codex-bridge.mjs';
 import {closeChatServer} from './codex-chat.mjs';
 import {stopOwnedProcess} from './codex-discovery.mjs';
+import {createRecordStore} from './record-store.mjs';
 
 const app=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const runtime=path.join(app,'.sites-runtime');fs.mkdirSync(runtime,{recursive:true});
@@ -14,6 +15,9 @@ const port=Number(process.env.PAPERLEAF_PORT||4399),backendPort=Number(process.e
 if(![port,backendPort].every(p=>Number.isInteger(p)&&p>=1024&&p<=65535)||port===backendPort)throw new Error('Invalid local ports');
 const installation=createHash('sha256').update(app).digest('hex').slice(0,12);
 const queue=new JobQueue();
+// Reading records live beside the app, so they survive restarts and travel with the folder.
+const records=createRecordStore(process.env.PAPERLEAF_RECORDS||path.join(app,'records'));
+const readBody=async(req,limit)=>{let size=0;const chunks=[];for await(const chunk of req){size+=chunk.length;if(size>limit)throw new Error('内容过大，无法保存。');chunks.push(chunk);}return Buffer.concat(chunks);};
 const out=fs.openSync(path.join(runtime,'worker.stdout.log'),'a'),err=fs.openSync(path.join(runtime,'worker.stderr.log'),'a');
 const worker=spawn(process.execPath,[path.join(app,'node_modules','wrangler','bin','wrangler.js'),'dev','--config',path.join(app,'dist','server','wrangler.json'),'--local','--persist-to',path.join(app,'.wrangler','state'),'--ip','127.0.0.1','--port',String(backendPort),'--inspector-port','0'],{cwd:app,windowsHide:true,stdio:['ignore',out,err],env:{...process.env,WRANGLER_SEND_METRICS:'false',CLOUDFLARE_CF_FETCH_ENABLED:'false',WRANGLER_WRITE_LOGS:'false',WRANGLER_REGISTRY_PATH:path.join(runtime,'registry'),MINIFLARE_REGISTRY_PATH:path.join(runtime,'miniflare')}});
 fs.closeSync(out);fs.closeSync(err);
@@ -31,6 +35,27 @@ const server=http.createServer(async(req,res)=>{
   const url=new URL(req.url,origin);
   if(url.pathname==='/api/health'&&req.method==='GET'){
     try{const response=await fetch(`http://127.0.0.1:${backendPort}/api/health`,{signal:AbortSignal.timeout(2500)});const data=await response.json();json(res,response.status,{...data,bridge:'codex-v2',installation});}catch{json(res,503,{error:'知页正在启动。'});}return;
+  }
+  if(url.pathname==='/api/records'||url.pathname.startsWith('/api/records/')){
+    try{
+      if(url.pathname==='/api/records'&&req.method==='GET'){json(res,200,{records:await records.list()});return;}
+      const match=/^\/api\/records\/([a-f0-9]{32})(\/pdf)?$/.exec(url.pathname);
+      if(!match){json(res,404,{error:'阅读记录接口不存在。'});return;}
+      const [,id,pdf]=match;
+      if(pdf&&req.method==='GET'){
+        let source;try{source=await records.openPdf(id);}catch{json(res,404,{error:'这篇论文的 PDF 副本不存在，请重新上传。'});return;}
+        res.writeHead(200,{'Content-Type':'application/pdf','Content-Length':source.size,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});source.stream.pipe(res);return;
+      }
+      if(pdf&&req.method==='PUT'){await records.savePdf(id,await readBody(req,61*1024*1024));json(res,200,{saved:true});return;}
+      if(!pdf&&req.method==='GET'){const record=await records.read(id);json(res,record?200:404,record||{error:'没有这篇论文的阅读记录。'});return;}
+      if(!pdf&&req.method==='PUT'){
+        let body;try{body=JSON.parse((await readBody(req,40*1024*1024)).toString('utf8'));}catch(e){json(res,400,{error:e.message?.includes('过大')?e.message:'记录格式无效。'});return;}
+        json(res,200,await records.save(id,body));return;
+      }
+      if(!pdf&&req.method==='DELETE'){await records.remove(id);json(res,200,{deleted:true});return;}
+      json(res,405,{error:'不支持的操作。'});
+    }catch(e){if(!res.headersSent)json(res,400,{error:e.message||'阅读记录保存失败。'});}
+    return;
   }
   if(url.pathname.startsWith('/api/codex/')){
     try{

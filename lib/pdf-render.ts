@@ -1,5 +1,6 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { PageBox } from './page-content';
+import { refineBox } from './box-refine';
 const cache=new WeakMap<PDFDocumentProxy,Map<number,Promise<HTMLCanvasElement>>>();
 
 export function pageCanvas(doc:PDFDocumentProxy,index:number):Promise<HTMLCanvasElement>{
@@ -9,7 +10,9 @@ export function pageCanvas(doc:PDFDocumentProxy,index:number):Promise<HTMLCanvas
     const page=await doc.getPage(index),original=page.getViewport({scale:1});
     const viewport=page.getViewport({scale:Math.min(2.5,2200/Math.max(original.width,original.height))});
     const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
-    await page.render({canvas,canvasContext:canvas.getContext('2d')!,viewport}).promise;
+    // The print intent renders without animation frames, which browsers suspend while the tab is in the
+    // background; otherwise recognition of a long paper stalls as soon as the reader switches tabs.
+    await page.render({canvas,canvasContext:canvas.getContext('2d')!,viewport,intent:'print'}).promise;
     return canvas;
   })();
   pages.set(index,promise);
@@ -26,4 +29,28 @@ export function regionCanvas(source:HTMLCanvasElement,box:PageBox):HTMLCanvasEle
   const target=document.createElement('canvas');target.width=width;target.height=height;
   target.getContext('2d')!.drawImage(source,x,y,width,height,0,0,width,height);
   return target;
+}
+
+type InkGrid={ink:Uint8Array;columns:number;rows:number};
+const grids=new WeakMap<HTMLCanvasElement,InkGrid|null>();
+function inkGrid(source:HTMLCanvasElement):InkGrid|null{
+  if(grids.has(source))return grids.get(source)!;
+  let grid:InkGrid|null=null;
+  try{
+    const columns=Math.min(source.width,640),rows=Math.max(1,Math.round(source.height*columns/source.width));
+    const small=document.createElement('canvas');small.width=columns;small.height=rows;
+    const context=small.getContext('2d',{willReadFrequently:true})!;context.fillStyle='#fff';context.fillRect(0,0,columns,rows);context.drawImage(source,0,0,columns,rows);
+    const data=context.getImageData(0,0,columns,rows).data,ink=new Uint8Array(columns*rows);let dark=0;
+    for(let i=0;i<ink.length;i++)if(data[i*4]*.299+data[i*4+1]*.587+data[i*4+2]*.114<215){ink[i]=1;dark++;}
+    // A mostly dark page has no white margins to measure against.
+    if(dark<ink.length*.5)grid={ink,columns,rows};
+  }catch{/* keep the model's region */}
+  grids.set(source,grid);return grid;
+}
+/** Adjust a model-estimated region (0-1000 units) so that the crop neither clips nor pads the figure or formula. */
+export function snapBox(source:HTMLCanvasElement,box:PageBox):PageBox{
+  const grid=inkGrid(source);if(!grid)return box;
+  const fx=grid.columns/1000,fy=grid.rows/1000;
+  const refined=refineBox(grid.ink,grid.columns,grid.rows,{x:box.x*fx,y:box.y*fy,width:box.width*fx,height:box.height*fy});
+  return {x:refined.x/fx,y:refined.y/fy,width:refined.width/fx,height:refined.height/fy};
 }
