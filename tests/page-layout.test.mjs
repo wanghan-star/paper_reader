@@ -57,7 +57,7 @@ test('one malformed block is repaired or dropped without losing the rest of the 
   assert.deepEqual(result.blocks[3].box,{x:0,y:0,width:1000,height:1000});
   assert.deepEqual(parsePageLayout('{"blocks":[]}'),{blocks:[]});
 });
-const {refineBox}=await load(compile('lib/box-refine.ts'));
+const {refineBox,cutCaption}=await load(compile('lib/box-refine.ts'));
 test('figure regions grow to content that the estimate clipped and shed blank margins',()=>{
   const columns=100,rows=100,ink=new Uint8Array(columns*rows);
   const fill=(x0,y0,x1,y1)=>{for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++)ink[y*columns+x]=1;};
@@ -88,4 +88,12 @@ test('sentence ranges map one to one, or proportionally when a translation merge
   assert.deepEqual(mapSentences(3,3,4,2),[1,1]);
   assert.deepEqual(mapSentences(0,0,4,2),[0,0]);
   assert.deepEqual(mapSentences(0,0,0,2),[0,-1]);
+});
+test('a figure region stops above its own caption, but keeps captions elsewhere on the page out of the decision',()=>{
+  const figure={x:100,y:200,width:400,height:300};
+  assert.deepEqual(cutCaption(figure,[{x:110,top:440,width:300}]),{...figure,height:236});
+  assert.deepEqual(cutCaption(figure,[{x:600,top:440,width:200}]),figure,'caption of the other column');
+  assert.deepEqual(cutCaption(figure,[{x:110,top:230,width:300}]),figure,'a line near the top is part of the figure');
+  assert.deepEqual(cutCaption(figure,[{x:110,top:560,width:300}]),figure,'caption already below the region');
+  assert.deepEqual(cutCaption(figure,[{x:110,top:470,width:300},{x:110,top:430,width:300}]).height,226);
 });

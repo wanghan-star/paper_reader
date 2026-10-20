@@ -1,4 +1,18 @@
 export type Box={x:number;y:number;width:number;height:number};
+export type TextLine={x:number;top:number;width:number};
+
+/**
+ * The caption is shown as text under each figure, so a figure region that also encloses its caption
+ * shows it twice. Cut the region just above a caption line ("Fig. 3", "Table 2") found in its lower part.
+ */
+export function cutCaption(box:Box,captions:TextLine[]):Box{
+  let bottom=box.y+box.height;
+  for(const line of captions){
+    const overlaps=line.x<box.x+box.width&&line.x+line.width>box.x;
+    if(overlaps&&line.top>box.y+box.height*.4&&line.top<bottom)bottom=line.top;
+  }
+  return bottom<box.y+box.height?{...box,height:Math.max(1,bottom-box.y-4)}:box;
+}
 
 /**
  * Tighten a model-estimated region against the page's actual ink. The model's coordinates are approximate,

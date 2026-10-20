@@ -2,7 +2,8 @@
 import {useEffect,useRef,useState} from 'react';
 import type {PDFDocumentProxy} from 'pdfjs-dist';
 import type {PageBox} from '@/lib/page-content';
-import {pageCanvas,regionCanvas,snapBox} from '@/lib/pdf-render';
+import {captionLines,pageCanvas,regionCanvas,snapBox} from '@/lib/pdf-render';
+import {cutCaption} from '@/lib/box-refine';
 import {Expand,LoaderCircle,ScanLine,Sparkles,X} from 'lucide-react';
 
 export default function PaperVisual({doc,page,box,label,onExplain}:{doc:PDFDocumentProxy;page:number;box:PageBox;label:string;onExplain:(image:string)=>void}){
@@ -11,9 +12,11 @@ export default function PaperVisual({doc,page,box,label,onExplain}:{doc:PDFDocum
   const original=useRef<HTMLCanvasElement|null>(null),start=useRef<{x:number;y:number}|null>(null),dialog=useRef<HTMLDialogElement>(null);
   useEffect(()=>{
     let alive=true;setImage('');setError(false);setRect(null);setCrop(false);
-    pageCanvas(doc,page).then(source=>{if(!alive)return;const canvas=regionCanvas(source,snapBox(source,box));original.current=canvas;setImage(canvas.toDataURL('image/png'));}).catch(()=>{if(alive)setError(true);});
+    // Figures and tables leave their caption out of the image: it is shown as text below.
+    const captioned=/图表|表格/.test(label);
+    Promise.all([pageCanvas(doc,page),captioned?captionLines(doc,page):Promise.resolve([])]).then(([source,captions])=>{if(!alive)return;const canvas=regionCanvas(source,snapBox(source,cutCaption(box,captions)));original.current=canvas;setImage(canvas.toDataURL('image/png'));}).catch(()=>{if(alive)setError(true);});
     return()=>{alive=false;original.current=null;};
-  },[doc,page,box.x,box.y,box.width,box.height]);
+  },[doc,page,label,box.x,box.y,box.width,box.height]);
   const point=(e:React.PointerEvent)=>{const r=e.currentTarget.getBoundingClientRect();return {x:Math.max(0,Math.min(r.width,e.clientX-r.left)),y:Math.max(0,Math.min(r.height,e.clientY-r.top))};};
   const finish=(e:React.PointerEvent)=>{
     const from=start.current;start.current=null;if(!from||!original.current)return;

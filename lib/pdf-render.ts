@@ -1,6 +1,24 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { PageBox } from './page-content';
-import { refineBox } from './box-refine';
+import { refineBox, type TextLine } from './box-refine';
+const captionCache=new WeakMap<PDFDocumentProxy,Map<number,Promise<TextLine[]>>>();
+const CAPTION=/^\s*(?:Fig(?:ure)?s?\.?|FIG(?:URE)?\.?|Tab(?:le)?\.?|TABLE)\s*[0-9IVX]+/;
+
+/** Lines of a born-digital page that begin a figure or table caption, in 0-1000 page units. Scans have none. */
+export function captionLines(doc:PDFDocumentProxy,index:number):Promise<TextLine[]>{
+  let pages=captionCache.get(doc);if(!pages){pages=new Map();captionCache.set(doc,pages);}
+  const existing=pages.get(index);if(existing)return existing;
+  const promise=(async()=>{
+    const page=await doc.getPage(index),{width,height}=page.getViewport({scale:1}),content=await page.getTextContent();
+    return content.items.flatMap(item=>{
+      if(!("str" in item)||!CAPTION.test(item.str))return [];
+      const size=Math.abs(item.transform[3])||item.height||10;
+      return [{x:item.transform[4]/width*1000,top:(height-item.transform[5]-size)/height*1000,width:Math.max(item.width,1)/width*1000}];
+    });
+  })().catch(()=>[]);
+  pages.set(index,promise);
+  return promise;
+}
 const cache=new WeakMap<PDFDocumentProxy,Map<number,Promise<HTMLCanvasElement>>>();
 
 export function pageCanvas(doc:PDFDocumentProxy,index:number):Promise<HTMLCanvasElement>{
