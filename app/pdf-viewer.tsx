@@ -19,7 +19,8 @@ export default function PdfViewer({doc,page,onCrop,onText,zoom}: {doc:PDFDocumen
       const el=canvas.current, textEl=layer.current;if(!el||!textEl)return;
       el.width=Math.round(viewport.width*ratio);el.height=Math.round(viewport.height*ratio);el.style.width=`${viewport.width}px`;el.style.height=`${viewport.height}px`;
       const context=el.getContext("2d");if(!context)throw new Error("浏览器无法绘制 PDF。");
-      task=pdfPage.render({canvas:el,canvasContext:context,viewport,transform:[ratio,0,0,ratio,0,0]});
+      // Rendered without animation frames, so a page opened while the window is in the background still finishes.
+      task=pdfPage.render({canvas:el,canvasContext:context,viewport,transform:[ratio,0,0,ratio,0,0],intent:"print"});
       await (task as unknown as {promise:Promise<void>}).promise;if(disposed)return;
       textEl.replaceChildren();textEl.style.width=`${viewport.width}px`;textEl.style.height=`${viewport.height}px`;textEl.style.setProperty("--scale-factor",String(cssScale));textEl.style.setProperty("--total-scale-factor",String(cssScale));
       const {TextLayer}=await import("pdfjs-dist");if(disposed)return;

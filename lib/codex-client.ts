@@ -28,6 +28,11 @@ export async function callCodex(task:string,payload:Record<string,unknown>,model
       await new Promise<void>((resolve,reject)=>{const abort=()=>{clearTimeout(timer);reject(new DOMException('已停止','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',abort);resolve();},task==='chat'?300:750);signal.addEventListener('abort',abort,{once:true});});
       job=await read(await fetch(`/api/codex/jobs/${job.id}`,{signal,cache:'no-store'}));
     }
-  }catch(e){if(signal.aborted){cancel();throw new DOMException('已停止','AbortError');}throw e;}
+  }catch(e){
+    if(signal.aborted){cancel();throw new DOMException('已停止','AbortError');}
+    // The browser reports a closed local service as a bare "Failed to fetch".
+    if(e instanceof TypeError)throw new Error('连接不上知页的本地服务，可能已关闭或正在重启。请重新双击桌面图标打开知页，再发送一次。');
+    throw e;
+  }
   finally{signal.removeEventListener('abort',onAbort);}
 }

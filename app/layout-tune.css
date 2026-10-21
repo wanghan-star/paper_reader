@@ -19,3 +19,6 @@
 .recent-open{flex:1;min-width:0;text-align:left;padding:6px 7px;color:var(--ink)}.recent-open:disabled{cursor:default}.recent-open strong{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.recent-open small{display:block;color:var(--muted);font-size:11px;margin-top:1px}
 .recent-delete{width:26px;height:26px;display:grid;place-items:center;flex-shrink:0;border-radius:5px;color:var(--muted);opacity:0}.recent-records li:hover .recent-delete,.recent-delete:focus-visible{opacity:1}.recent-delete:hover{color:#b4553a;background:var(--paper)}
 .app-shell .paper-article h1.long-title{font-size:1.75em;letter-spacing:-.4px;line-height:1.3}
+/* The PDF text layer is invisible on purpose: only the selection background may show, never its approximate glyphs. */
+.textLayer ::selection{color:transparent;background:rgba(52,91,72,.24)}
+.textLayer ::-moz-selection{color:transparent;background:rgba(52,91,72,.24)}
