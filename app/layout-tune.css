@@ -22,3 +22,8 @@
 /* The PDF text layer is invisible on purpose: only the selection background may show, never its approximate glyphs. */
 .textLayer ::selection{color:transparent;background:rgba(52,91,72,.24)}
 .textLayer ::-moz-selection{color:transparent;background:rgba(52,91,72,.24)}
+.app-shell .question-box .chat-model{position:relative;display:flex;align-items:center;gap:6px;min-width:0;max-width:240px;color:var(--muted);font-size:12px}
+.app-shell .chat-model select{appearance:none;min-width:0;max-width:100%;border:0;background:transparent;color:inherit;font:inherit;padding:3px 16px 3px 0;cursor:pointer;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+.app-shell .chat-model select:hover,.app-shell .chat-model select:focus-visible{color:var(--green);outline:none}.app-shell .chat-model select:disabled{cursor:default}
+.app-shell .chat-model svg{position:absolute;right:0;pointer-events:none}.app-shell .chat-model option{color:var(--ink);background:var(--paper)}
+

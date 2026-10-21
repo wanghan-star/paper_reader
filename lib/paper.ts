@@ -1,8 +1,8 @@
 export type Sentence = { id: number; en: string; zh?: string; heading?: boolean;kind?:'heading'|'paragraph'|'equation'|'figure'|'table';box?:{x:number;y:number;width:number;height:number};uncertain?:boolean };
 export type PaperPage = { sentences: Sentence[]; text: string; heading: string; ocr?: boolean;needsVision?:boolean };
 export type Theme = "forest" | "sepia" | "mist" | "night" | "custom";
-export type Settings = { theme:Theme; background:string; readingMode:"paged"|"scroll"; textSize:number; readingSpan:number; compact:boolean; teaching:boolean; codexModel: string; autoTranslate: boolean };
-export const DEFAULT_SETTINGS: Settings = { theme:"forest", background:"#fffefa", readingMode:"paged", textSize:18, readingSpan:2, compact:true, teaching:true, codexModel: "gpt-6.1-sol", autoTranslate: true };
+export type Settings = { theme:Theme; background:string; readingMode:"paged"|"scroll"; textSize:number; readingSpan:number; compact:boolean; teaching:boolean; codexModel: string; chatModel: string; autoTranslate: boolean };
+export const DEFAULT_SETTINGS: Settings = { theme:"forest", background:"#fffefa", readingMode:"paged", textSize:18, readingSpan:2, compact:true, teaching:true, codexModel: "gpt-6.1-sol", chatModel: "", autoTranslate: true };
 
 type Item = { str: string; transform: number[]; width: number; height: number; hasEOL?: boolean };
 export function extractText(items: Item[], pageWidth: number): string {
