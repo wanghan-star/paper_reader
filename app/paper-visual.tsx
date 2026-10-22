@@ -2,11 +2,12 @@
 import {useEffect,useRef,useState} from 'react';
 import type {PDFDocumentProxy} from 'pdfjs-dist';
 import type {PageBox} from '@/lib/page-content';
-import {captionLines,pageCanvas,regionCanvas,snapBox} from '@/lib/pdf-render';
+import {captionLines,pageCanvas,pageRows,regionCanvas,snapBox} from '@/lib/pdf-render';
 import {cutCaption} from '@/lib/box-refine';
+import {figureRegion} from '@/lib/figure-region';
 import {Expand,LoaderCircle,ScanLine,Sparkles,X} from 'lucide-react';
 
-export default function PaperVisual({doc,page,box,label,onExplain}:{doc:PDFDocumentProxy;page:number;box:PageBox;label:string;onExplain:(image:string)=>void}){
+export default function PaperVisual({doc,page,box,label,caption='',onExplain}:{doc:PDFDocumentProxy;page:number;box:PageBox;label:string;caption?:string;onExplain:(image:string)=>void}){
   const [image,setImage]=useState(''),[error,setError]=useState(false),[crop,setCrop]=useState(false);
   const [rect,setRect]=useState<{x:number;y:number;width:number;height:number}|null>(null);
   const original=useRef<HTMLCanvasElement|null>(null),start=useRef<{x:number;y:number}|null>(null),dialog=useRef<HTMLDialogElement>(null);
@@ -14,9 +15,12 @@ export default function PaperVisual({doc,page,box,label,onExplain}:{doc:PDFDocum
     let alive=true;setImage('');setError(false);setRect(null);setCrop(false);
     // Figures and tables leave their caption out of the image: it is shown as text below.
     const captioned=/图表|表格/.test(label);
-    Promise.all([pageCanvas(doc,page),captioned?captionLines(doc,page):Promise.resolve([])]).then(([source,captions])=>{if(!alive)return;const canvas=regionCanvas(source,snapBox(source,cutCaption(box,captions)));original.current=canvas;setImage(canvas.toDataURL('image/png'));}).catch(()=>{if(alive)setError(true);});
+    Promise.all([pageCanvas(doc,page),captioned?pageRows(doc,page):Promise.resolve([])]).then(([source,rows])=>{if(!alive)return;
+      // Prefer the region implied by the page's own caption and paragraph positions; the model's box is an estimate.
+      const located=captioned?figureRegion(rows,caption,box):null;
+      const canvas=regionCanvas(source,located?snapBox(source,located,false):snapBox(source,cutCaption(box,captionLines(rows))));original.current=canvas;setImage(canvas.toDataURL('image/png'));}).catch(()=>{if(alive)setError(true);});
     return()=>{alive=false;original.current=null;};
-  },[doc,page,label,box.x,box.y,box.width,box.height]);
+  },[doc,page,label,caption,box.x,box.y,box.width,box.height]);
   const point=(e:React.PointerEvent)=>{const r=e.currentTarget.getBoundingClientRect();return {x:Math.max(0,Math.min(r.width,e.clientX-r.left)),y:Math.max(0,Math.min(r.height,e.clientY-r.top))};};
   const finish=(e:React.PointerEvent)=>{
     const from=start.current;start.current=null;if(!from||!original.current)return;

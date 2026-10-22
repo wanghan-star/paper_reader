@@ -68,3 +68,14 @@ export function parseTranslations(content: string, expected: {id:number}[]): {id
   return rows.map(r=>({id:r.id,zh:r.zh.trim()}));
 }
 
+/**
+ * The contents entry for a page: its first real heading, or for a page of figures the range of figure
+ * numbers. Text pulled from a figure page before recognition is mostly axis labels and is not used.
+ */
+export function pageLabel(page:PaperPage,index:number):string{
+  const heading=page.sentences.find(s=>s.heading&&s.en.trim().length>3);
+  if(page.ocr&&heading)return heading.en;
+  const numbers=page.sentences.filter(s=>s.kind==="figure"||s.kind==="table").map(s=>/^\s*(?:Fig(?:ure)?\.?|Table|TABLE)\s*(\d+)/i.exec(s.en)?.[1]).filter(Boolean).map(Number);
+  if(numbers.length&&(!heading||page.sentences.filter(s=>s.kind==="paragraph").length<2))return numbers.length>1?`图 ${Math.min(...numbers)}–${Math.max(...numbers)}`:`图 ${numbers[0]}`;
+  return page.ocr?heading?.en||page.sentences.find(s=>s.kind==="paragraph")?.en.slice(0,40)||`第 ${index+1} 页`:page.heading;
+}

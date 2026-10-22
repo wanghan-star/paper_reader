@@ -97,3 +97,25 @@ test('a figure region stops above its own caption, but keeps captions elsewhere 
   assert.deepEqual(cutCaption(figure,[{x:110,top:560,width:300}]),figure,'caption already below the region');
   assert.deepEqual(cutCaption(figure,[{x:110,top:470,width:300},{x:110,top:430,width:300}]).height,226);
 });
+const {figureRegion,captionBlocks,textRows}=await load(compile('lib/figure-region.ts'));
+test('figure regions come from caption and paragraph positions in a dense two-column figure page',()=>{
+  // Two columns of 300pt on a 600x1000pt page; text items as PDF.js reports them (baseline y from the bottom).
+  const item=(str,x,top,size=10,width=str.length*size*.5)=>({str,transform:[size,0,0,size,x,1000-top-size*.85],width,height:size});
+  const items=[
+    item('Fig. 1. Data flow of the hybrid input through every stage of the',30,300,10,270),item('proposed model, shown for both kinds of neurons.',30,311,10,220),
+    item('Fig. 2. Comparison between',320,300,10,130),item('device families.',320,311,10,80),
+    item('(a)',30,330,8),item('100%',200,331,7),          // labels inside figure 3
+    item('Fig. 3. Test chip photo.',30,560,10,120),
+    item('This body paragraph runs across the whole column of the page and',320,520,10,270),
+    item('ends here.',320,531,10,50),
+    item('Fig. 4. Switching results.',320,700,10,130)
+  ];
+  const rows=textRows(items,600,1000);
+  assert.deepEqual(captionBlocks(rows).map(c=>[c.key,Math.round(c.top),Math.round(c.bottom)]).sort(),[['figure:1',300,322],['figure:2',300,322],['figure:3',560,571],['figure:4',700,711]].sort(),'captions in both columns stay apart and keep their second line');
+  const fig3=figureRegion(rows,'Fig. 3. Test chip photo.',{x:40,y:280,width:450,height:330});
+  assert.ok(Math.abs(fig3.y-326)<=2&&Math.abs(fig3.y+fig3.height-556)<=2,'from below the previous caption to above its own: '+JSON.stringify(fig3));
+  const fig4=figureRegion(rows,'Fig. 4. Switching results.',{x:530,y:300,width:440,height:420});
+  assert.ok(Math.abs(fig4.y-546)<=2,'starts below the paragraph above it, including its short last line: '+JSON.stringify(fig4));
+  assert.equal(figureRegion(rows,'Fig. 9. Missing.',{x:40,y:300,width:400,height:300}),null);
+  assert.equal(figureRegion(rows,'A paragraph',{x:40,y:300,width:400,height:300}),null);
+});

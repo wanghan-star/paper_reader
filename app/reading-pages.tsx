@@ -22,7 +22,7 @@ function Reveal({title,children,className}:{title:string;children:ReactNode;clas
 }
 
 function ContentBlock({sentence:s,index,doc,attachText,attachImage}:{sentence:Sentence;index:number;doc:PDFDocumentProxy|null;attachText:(text:string,page:number)=>void;attachImage:(image:string,page:number)=>void}){
-  const visual=doc&&s.box?<PaperVisual doc={doc} page={index+1} box={s.box} label={s.kind==='equation'?'公式原图':s.kind==='table'?'论文表格':s.kind==='figure'?'论文图表':'含公式段落原图'} onExplain={image=>attachImage(image,index+1)}/>:null;
+  const visual=doc&&s.box?<PaperVisual doc={doc} page={index+1} box={s.box} caption={s.en} label={s.kind==='equation'?'公式原图':s.kind==='table'?'论文表格':s.kind==='figure'?'论文图表':'含公式段落原图'} onExplain={image=>attachImage(image,index+1)}/>:null;
   if(s.kind==='equation'){
     const normalized=normalizeMath(s.en),formula=normalized.includes('$')?normalized:`$$${normalized}$$`;
     // A formula the renderer cannot typeset is shown as its original image rather than as an error message.

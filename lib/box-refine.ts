@@ -20,13 +20,14 @@ export function cutCaption(box:Box,captions:TextLine[]):Box{
  * still cuts through ink (bounded, and stopping at the first blank gap), then inward over blank rows.
  * `ink` is a row-major grid (1 = dark pixel) of size columns x rows; the box uses the same grid units.
  */
-export function refineBox(ink:Uint8Array,columns:number,rows:number,box:Box,reach=.04):Box{
+export function refineBox(ink:Uint8Array,columns:number,rows:number,box:Box,reach=.04,growY=true):Box{
   let left=Math.max(0,Math.floor(box.x)),top=Math.max(0,Math.floor(box.y));
   let right=Math.min(columns,Math.ceil(box.x+box.width)),bottom=Math.min(rows,Math.ceil(box.y+box.height));
   if(right-left<2||bottom-top<2)return box;
   const rowInk=(y:number)=>{if(y<0||y>=rows)return false;for(let x=left;x<right;x++)if(ink[y*columns+x])return true;return false;};
   const columnInk=(x:number)=>{if(x<0||x>=columns)return false;for(let y=top;y<bottom;y++)if(ink[y*columns+x])return true;return false;};
-  const maxX=Math.ceil(columns*reach),maxY=Math.ceil(rows*reach);
+  // Vertical growth is skipped when the top and bottom already come from the PDF's own text layout.
+  const maxX=Math.ceil(columns*reach),maxY=growY?Math.ceil(rows*reach):0;
   // Outward: only while the line just outside the edge is inked, i.e. the content continues past the box.
   for(let n=0;n<maxY&&rowInk(top-1);n++)top--;
   for(let n=0;n<maxY&&rowInk(bottom);n++)bottom++;

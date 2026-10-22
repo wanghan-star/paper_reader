@@ -1,32 +1,32 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { PageBox } from './page-content';
 import { refineBox, type TextLine } from './box-refine';
-const captionCache=new WeakMap<PDFDocumentProxy,Map<number,Promise<TextLine[]>>>();
-const CAPTION=/^\s*(?:Fig(?:ure)?s?\.?|FIG(?:URE)?\.?|Tab(?:le)?\.?|TABLE)\s*[0-9IVX]+/;
+import { captionKey, textRows, type TextRow } from './figure-region';
+const rowCache=new WeakMap<PDFDocumentProxy,Map<number,Promise<TextRow[]>>>();
 
-/** Lines of a born-digital page that begin a figure or table caption, in 0-1000 page units. Scans have none. */
-export function captionLines(doc:PDFDocumentProxy,index:number):Promise<TextLine[]>{
-  let pages=captionCache.get(doc);if(!pages){pages=new Map();captionCache.set(doc,pages);}
+/** Text lines of a born-digital page, in 0-1000 page units. Scanned pages have none. */
+export function pageRows(doc:PDFDocumentProxy,index:number):Promise<TextRow[]>{
+  let pages=rowCache.get(doc);if(!pages){pages=new Map();rowCache.set(doc,pages);}
   const existing=pages.get(index);if(existing)return existing;
   const promise=(async()=>{
     const page=await doc.getPage(index),{width,height}=page.getViewport({scale:1}),content=await page.getTextContent();
-    return content.items.flatMap(item=>{
-      if(!("str" in item)||!CAPTION.test(item.str))return [];
-      const size=Math.abs(item.transform[3])||item.height||10;
-      return [{x:item.transform[4]/width*1000,top:(height-item.transform[5]-size)/height*1000,width:Math.max(item.width,1)/width*1000}];
-    });
+    return textRows(content.items.flatMap(item=>"str" in item?[{str:item.str,transform:item.transform,width:item.width,height:item.height}]:[]),width,height);
   })().catch(()=>[]);
   pages.set(index,promise);
   return promise;
 }
 const cache=new WeakMap<PDFDocumentProxy,Map<number,Promise<HTMLCanvasElement>>>();
 
+/** Lines that begin a figure or table caption. */
+export const captionLines=(rows:TextRow[]):TextLine[]=>rows.filter(r=>captionKey(r.text)).map(r=>({x:r.x,top:r.top,width:r.width}));
+
 export function pageCanvas(doc:PDFDocumentProxy,index:number):Promise<HTMLCanvasElement>{
   let pages=cache.get(doc);if(!pages){pages=new Map();cache.set(doc,pages);}
   const existing=pages.get(index);if(existing)return existing;
   const promise=(async()=>{
     const page=await doc.getPage(index),original=page.getViewport({scale:1});
-    const viewport=page.getViewport({scale:Math.min(2.5,2200/Math.max(original.width,original.height))});
+    // Dense figure pages need the extra resolution for both recognition and the cropped figures.
+    const viewport=page.getViewport({scale:Math.min(3,2600/Math.max(original.width,original.height))});
     const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
     // The print intent renders without animation frames, which browsers suspend while the tab is in the
     // background; otherwise recognition of a long paper stalls as soon as the reader switches tabs.
@@ -66,9 +66,9 @@ function inkGrid(source:HTMLCanvasElement):InkGrid|null{
   grids.set(source,grid);return grid;
 }
 /** Adjust a model-estimated region (0-1000 units) so that the crop neither clips nor pads the figure or formula. */
-export function snapBox(source:HTMLCanvasElement,box:PageBox):PageBox{
+export function snapBox(source:HTMLCanvasElement,box:PageBox,growY=true):PageBox{
   const grid=inkGrid(source);if(!grid)return box;
   const fx=grid.columns/1000,fy=grid.rows/1000;
-  const refined=refineBox(grid.ink,grid.columns,grid.rows,{x:box.x*fx,y:box.y*fy,width:box.width*fx,height:box.height*fy});
+  const refined=refineBox(grid.ink,grid.columns,grid.rows,{x:box.x*fx,y:box.y*fy,width:box.width*fx,height:box.height*fy},.04,growY);
   return {x:refined.x/fx,y:refined.y/fy,width:refined.width/fx,height:refined.height/fy};
 }
