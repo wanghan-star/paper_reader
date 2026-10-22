@@ -37,4 +37,13 @@
 .glossary-generate{display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border-radius:20px;background:var(--green);color:var(--paper);font-size:13px}.glossary-generate:disabled{opacity:.5}
 ::highlight(glossary-term){text-decoration:underline dotted 1.5px;text-decoration-color:rgba(52,91,72,.65);text-underline-offset:4px}
 .glossary-card{position:fixed;z-index:80;max-width:290px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);box-shadow:0 10px 30px #1f2d2420;pointer-events:none;font-size:13px;line-height:1.65;animation:enter .12s ease}.glossary-card strong{margin-right:8px;color:var(--green)}.glossary-card span{color:var(--muted)}.glossary-card p{margin:5px 0 0}
+/* Figure, table, equation and citation links */
+.ref-link{display:inline;padding:0 2px;margin:0 -1px;border-radius:3px;font:inherit;color:var(--green);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--green) 35%,transparent);text-underline-offset:3px;cursor:pointer}.ref-link:hover{background:var(--green-soft);text-decoration-color:var(--green)}
+.ref-cite{font-size:.92em}
+.return-pill{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;background:var(--green);color:var(--paper);box-shadow:0 8px 24px #1f2d2433;animation:enter .2s ease}
+.return-pill button{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;color:inherit;font-size:13px}.return-pill button:hover{background:#ffffff1f}.return-pill .return-dismiss{padding:6px 8px}
+.cite-card{position:fixed;z-index:75;width:360px;max-width:calc(100vw - 24px);padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);box-shadow:0 14px 40px #1f2d2426;font-size:13px;line-height:1.7;animation:enter .14s ease}
+.cite-card p{margin:0}.cite-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;color:var(--green)}.cite-card-head button{display:grid;place-items:center;width:22px;height:22px;border-radius:5px;color:var(--muted)}.cite-card-head button:hover{background:var(--green-soft)}
+.cite-open{display:inline-flex;align-items:center;gap:4px;margin-top:8px;font-size:12px;color:var(--green)}.cite-open:hover{text-decoration:underline}
+figure.paper-visual.block-flash{animation:block-flash 2.2s ease-out}
 

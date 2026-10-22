@@ -32,7 +32,12 @@ export function usePaper(settings: Settings) {
   /** Bring a block of the bilingual view into view and flash it. */
   const locate = (n: number, id: number | string) => {
     const find = () => reader.current?.querySelector<HTMLElement>(`[data-paper-page="${n}"] [data-block="${id}"]`);
-    const flash = (el: HTMLElement) => { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.classList.remove("block-flash"); void el.offsetWidth; el.classList.add("block-flash"); };
+    const flash = (el: HTMLElement) => {
+      // A figure's caption sits under its image: bring the image into view and flash both.
+      const image = el.previousElementSibling?.matches("figure.paper-visual") ? el.previousElementSibling as HTMLElement : null;
+      (image ?? el).scrollIntoView({ block: image ? "start" : "center", behavior: "smooth" });
+      for (const part of image ? [image, el] : [el]) { part.classList.remove("block-flash"); void part.offsetWidth; part.classList.add("block-flash"); }
+    };
     const el = find(); if (el) { flash(el); return true; }
     // The page may not be on screen yet: switch to it, then look again once it has rendered.
     setTab("bilingual"); goToPage(n);

@@ -22,7 +22,8 @@ import Header from "./_reader/header";
 import Sidebar from "./_reader/sidebar";
 import Toolbar from "./_reader/toolbar";
 import AssistantPanel from "./_reader/assistant-panel";
-import { DropOverlay, LoadingBar, SelectionPopup, ToastView, type Selection, type Toast } from "./_reader/overlays";
+import { CitationCard, DropOverlay, LoadingBar, ReturnPill, SelectionPopup, ToastView, type CiteCard, type ReturnPoint, type Selection, type Toast } from "./_reader/overlays";
+import { citation, findTarget, type RefKind } from "@/lib/references";
 
 export default function Reader() {
   const [toast, setToast] = useState<Toast | null>(null);
@@ -30,6 +31,7 @@ export default function Reader() {
   const [settingsOpen, setSettingsOpen] = useState(false), [appearanceOpen, setAppearanceOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false), [navOpen, setNavOpen] = useState(false);
   const [selection, setSelection] = useState<Selection | null>(null), [dragging, setDragging] = useState(false);
+  const [returnPoint, setReturnPoint] = useState<ReturnPoint | null>(null), [citeCard, setCiteCard] = useState<CiteCard | null>(null);
   // Launched from the desktop icon: keep the opening animation until the last paper is back on screen.
   const [intro, setIntro] = useState<"off" | "on" | "leaving">("off"), introStart = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null), chatEnd = useRef<HTMLDivElement>(null), input = useRef<HTMLTextAreaElement>(null), scrollFrame = useRef(0);
@@ -79,7 +81,7 @@ export default function Reader() {
   useEffect(() => { if (!chat.messages.length && !chat.busy) return; chatEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [chat.messages, chat.busy]);
 
   const onReadingScroll = () => {
-    setSelection(null); if (!continuous || scrollFrame.current) return;
+    setSelection(null); setCiteCard(null); if (!continuous || scrollFrame.current) return;
     scrollFrame.current = requestAnimationFrame(() => {
       scrollFrame.current = 0; const el = reader.current; if (!el) return;
       const top = el.getBoundingClientRect().top + 90;
@@ -102,9 +104,29 @@ export default function Reader() {
     const url = URL.createObjectURL(new Blob([content], { type: "text/markdown;charset=utf-8" })), a = document.createElement("a");
     a.href = url; a.download = paper.filename.replace(/\.pdf$/i, "") + "-中英对照.md"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); notify("中英对照已导出。");
   };
+  // Figure, table and equation links jump and leave a way back; a citation opens its reference in place.
+  const NAMES: Record<RefKind, string> = { fig: "图", table: "表", eq: "公式", cite: "参考文献" };
+  const followRef = (kind: RefKind, key: string, anchor: HTMLElement) => {
+    if (kind === "cite") {
+      const text = citation(pages, key);
+      if (!text) { notify(`没有找到参考文献 [${key}]，参考文献所在页可能还没识别。`, true); return; }
+      const box = anchor.getBoundingClientRect();
+      setCiteCard({ number: key, text, x: Math.max(12, Math.min(window.innerWidth - 372, box.left - 20)), y: box.bottom + 8 > window.innerHeight - 220 ? Math.max(12, box.top - 210) : box.bottom + 8 });
+      return;
+    }
+    const target = findTarget(pages, kind, key);
+    if (!target) { notify(`没有找到${NAMES[kind]} ${key.toUpperCase()}，它所在的页可能还没识别。`, true); return; }
+    setReturnPoint({ page, tab, scroll: reader.current?.scrollTop || 0, label: `${NAMES[kind]} ${key}` });
+    if (target.id < 0) { paper.setTab("bilingual"); paper.goToPage(target.page); } else paper.locate(target.page, target.id);
+  };
+  const goBack = () => {
+    if (!returnPoint) return; const point = returnPoint; setReturnPoint(null);
+    paper.setTab(point.tab); paper.goToPage(point.page);
+    setTimeout(() => reader.current?.scrollTo({ top: point.scroll, behavior: "smooth" }), 160);
+  };
   const pointSentence = (id: number, n: number) => pages[n - 1]?.sentences.find(v => v.id === id);
   const busy = !!translation.status || paper.loading;
-  const pageProps = { pages, indexes: shown, continuous, doc: paper.doc, zoom: paper.zoom, isDemo: paper.isDemo, attachText, attachImage: chat.attachImage, onOriginal: paper.showOriginal, busy };
+  const pageProps = { onRef: followRef, pages, indexes: shown, continuous, doc: paper.doc, zoom: paper.zoom, isDemo: paper.isDemo, attachText, attachImage: chat.attachImage, onOriginal: paper.showOriginal, busy };
   const dark = settings.theme === "night" || (settings.theme === "custom" && colorInk(settings.background) === "#edf2eb");
   const style = { "--reading-size": `${settings.textSize}px`, "--assistant-width": `${prefs.assistantWidth}px`, ...(settings.theme === "custom" ? { "--paper": settings.background, "--ink": colorInk(settings.background) } : {}) } as CSSProperties;
 
@@ -155,6 +177,8 @@ export default function Reader() {
     </div>
     {tab === "bilingual" && glossary.glossary.entries.length > 0 && <GlossaryHighlight container={reader} entries={glossary.glossary.entries} version={`${page}-${continuous}-${settings.readingSpan}-${paper.zoom}`}/>}
     {selection && <SelectionPopup selection={selection} onExplain={() => attachText(selection.text, selection.page)}/>}
+    {returnPoint && <ReturnPill point={returnPoint} onReturn={goBack} onDismiss={() => setReturnPoint(null)}/>}
+    {citeCard && <CitationCard card={citeCard} onClose={() => setCiteCard(null)} onOpen={() => { const t = findTarget(pages, "cite", citeCard.number); setCiteCard(null); if (t) { setReturnPoint({ page, tab, scroll: reader.current?.scrollTop || 0, label: "" }); paper.locate(t.page, t.id); } }}/>}
     {toast && <ToastView toast={toast} onClose={() => setToast(null)}/>}
     {dragging && <DropOverlay/>}
     {paper.loading && <LoadingBar/>}

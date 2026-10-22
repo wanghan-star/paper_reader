@@ -64,3 +64,18 @@ test('glossary candidates come from defined phrases and repeated acronyms; terms
   assert.equal(glossary.firstPage(pages,'MTJ'),1);assert.equal(glossary.firstPage(pages,'effect'),2);
   const p=glossary.termPattern('MTJ');assert.deepEqual('MTJs and MTJ, not SMTJ'.match(p),['MTJs','MTJ'],'singular and plural, never inside another word');
 });
+
+const refs=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(fs.readFileSync('lib/references.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64'));
+test('figure, table, equation and citation mentions become links that resolve to their blocks',()=>{
+  const linked=refs.linkReferences('As shown in Fig. 5a and Table II, Eq. (2) holds [3, 7]; see $x(2)$ and 图 3 及式 (4)。方式 (5) 不是公式。');
+  assert.match(linked,/\[Fig\. 5a\]\(#paper-ref-fig-5\)/);assert.match(linked,/\(#paper-ref-table-ii\)/);assert.match(linked,/\(#paper-ref-eq-2\)/);
+  assert.match(linked,/&#91;\[3\]\(#paper-ref-cite-3\), \[7\]\(#paper-ref-cite-7\)&#93;/);
+  assert.match(refs.linkReferences('(Fig. 1a) and Fig. 3(b).'),/\[Fig\. 1a\]\(#paper-ref-fig-1\)\) and \[Fig\. 3\(b\)\]/,'a closing parenthesis stays outside the link');
+  assert.match(linked,/\$x\(2\)\$/,'math is untouched');assert.match(linked,/#paper-ref-fig-3/);assert.match(linked,/#paper-ref-eq-4/);assert.doesNotMatch(linked,/#paper-ref-eq-5/);
+  assert.equal(refs.linkReferences('Fig. 5. Proposed architecture with Fig. 2 inputs.').match(/paper-ref/g).length,1,"a caption's own label is not linked");
+  assert.deepEqual(refs.parseRef('#paper-ref-table-ii'),{kind:'table',key:'ii'});assert.equal(refs.parseRef('#x'),null);
+  const pages=[{text:'',heading:'',sentences:[{id:0,en:'Body text.'},{id:1,en:'$$E=mc^2 \\tag{2}$$',kind:'equation'}]},{text:'',heading:'',sentences:[{id:0,en:'Fig. 5. Architecture.',kind:'figure'},{id:1,en:'TABLE II Comparison',kind:'table'},{id:2,en:'[3] A. Author, Title, 2024.'}]},{text:'Fig. 9. Only in text.',heading:'',sentences:[]}];
+  assert.deepEqual(refs.findTarget(pages,'fig','5'),{page:2,id:0});assert.deepEqual(refs.findTarget(pages,'table','2'),{page:2,id:1});
+  assert.deepEqual(refs.findTarget(pages,'eq','2'),{page:1,id:1});assert.deepEqual(refs.findTarget(pages,'fig','9'),{page:3,id:-1});
+  assert.equal(refs.findTarget(pages,'fig','4'),null);assert.equal(refs.citation(pages,'3'),'[3] A. Author, Title, 2024.');
+});
