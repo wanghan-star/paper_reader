@@ -141,7 +141,7 @@ export default function Reader() {
       </main>
       {assistantOpen && <button className="panel-shade assistant-shade" aria-label="关闭阅读助手" onClick={() => setAssistantOpen(false)}/>}
       <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} onResize={prefs.resizeAssistant} onResetWidth={prefs.resetAssistantWidth} chat={chat} chatEnd={chatEnd}
-        onTip={(next, hint) => { paper.setTab(next); notify(hint); }} onGuides={() => void guides.request(chat.busy)}
+        onTip={(next, hint) => { paper.setTab(next); notify(hint); }} onPage={n => { if (n < 1 || n > pages.length) return; paper.setTab("bilingual"); paper.goToPage(n); setAssistantOpen(false); }} onGuides={() => void guides.request(chat.busy)}
         settings={settings} saveSettings={prefs.saveSettings} models={prefs.models} loading={paper.loading} inputRef={input}
         guidePanel={<GuidePanel indexes={paper.visible} guides={guides.guides} open={guides.open} onToggle={guides.setOpen} busy={chat.busy || paper.loading} onRetry={() => void guides.request(chat.busy)}
           onLocate={(p, n) => { setAssistantOpen(false); paper.locate(n, p.id); }}

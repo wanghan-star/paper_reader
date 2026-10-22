@@ -27,12 +27,13 @@ function Welcome({ chat, onTip, onGuides }: { chat: Chat; onTip: (tab: "pdf" | "
   </div>;
 }
 
-function Messages({ chat }: { chat: Chat }) {
+function Messages({ chat, onPage }: { chat: Chat; onPage: (page: number) => void }) {
   return <div className="messages">
     {chat.messages.map(m => <div key={m.id} className={`message ${m.role} ${m.error ? "failed" : ""}`}>
       <div className="message-label">{m.role === "assistant" ? <><Sparkles size={12}/>Codex · 知页</> : <>你</>}<span>第 {m.page} 页</span></div>
       {m.image && <img src={m.image} alt={`第 ${m.page} 页圈选区域`}/>}
-      <div className="message-content"><RichText streaming={m.streaming}>{m.content}</RichText></div>
+      <div className="message-content"><RichText streaming={m.streaming} onPage={m.role === "assistant" ? onPage : undefined}>{m.content}</RichText></div>
+      {m.role === "assistant" && m.sources && m.sources.length > 0 && <div className="message-sources"><span>也参考了全文</span>{m.sources.map(n => <button key={n} onClick={() => onPage(n)}>第 {n} 页</button>)}</div>}
       {m.visual && !m.lesson && <LessonView preview previewNote={m.instant ? "即时演示预览 · Codex 正在结合论文补充讲解…" : undefined} lesson={{ visual: m.visual }} busy={chat.busy} onAsk={q => void chat.ask(q, m.page)}/>}
       {m.lesson && (m.lesson.visual || m.lesson.quiz) && <LessonView lesson={m.lesson} busy={chat.busy} onAsk={q => void chat.ask(q, m.page)}/>}
     </div>)}
@@ -72,8 +73,8 @@ function Composer({ chat, settings, saveSettings, models, loading, inputRef }: {
   </div>;
 }
 
-export default function AssistantPanel({ open, onClose, onResize, onResetWidth, guidePanel, chat, chatEnd, onTip, onGuides, ...composer }: {
-  open: boolean; onClose: () => void; onResize: (e: React.PointerEvent<HTMLDivElement>) => void; onResetWidth: () => void; guidePanel: ReactNode;
+export default function AssistantPanel({ open, onClose, onResize, onResetWidth, guidePanel, chat, chatEnd, onTip, onGuides, onPage, ...composer }: {
+  onPage: (page: number) => void; open: boolean; onClose: () => void; onResize: (e: React.PointerEvent<HTMLDivElement>) => void; onResetWidth: () => void; guidePanel: ReactNode;
   chat: Chat; chatEnd: RefObject<HTMLDivElement | null>; onTip: (tab: "pdf" | "bilingual", hint: string) => void; onGuides: () => void;
   settings: Settings; saveSettings: (s: Settings, message?: string) => void; models: CodexModel[]; loading: boolean; inputRef: RefObject<HTMLTextAreaElement | null>;
 }) {
@@ -82,7 +83,7 @@ export default function AssistantPanel({ open, onClose, onResize, onResetWidth, 
     <div className="assistant-header"><div><Sparkles size={17}/><strong>AI 阅读助手</strong></div><button className="icon-btn assistant-close" aria-label="关闭阅读助手" onClick={onClose}><X size={17}/></button><span className="assistant-label">随时问，慢慢懂</span></div>
     {guidePanel}
     <div className="chat-scroll">
-      {chat.messages.length ? <Messages chat={chat}/> : <Welcome chat={chat} onTip={onTip} onGuides={onGuides}/>}
+      {chat.messages.length ? <Messages chat={chat} onPage={onPage}/> : <Welcome chat={chat} onTip={onTip} onGuides={onGuides}/>}
       {chat.busy && <div className="thinking" role="status"><Sparkles size={14}/><span>正在结合论文思考</span><i/><i/><i/></div>}
       <div ref={chatEnd}/>
     </div>

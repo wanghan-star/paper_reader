@@ -30,4 +30,6 @@
 @keyframes diagram-flow{to{stroke-dashoffset:-12}}
 .lesson-full .lesson-diagram{width:min(760px,100%);margin:18px auto}
 @media(prefers-reduced-motion:reduce){.diagram-edge.active path{animation:none;stroke-dasharray:none}}
+.page-link{display:inline;padding:0 3px;margin:0 1px;border-radius:4px;background:var(--green-soft);color:var(--green);font:inherit;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--green) 35%,transparent);text-underline-offset:3px;cursor:pointer}.page-link:hover{background:color-mix(in srgb,var(--green-soft),var(--green) 14%)}
+.message-sources{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--muted)}.message-sources button{padding:2px 9px;border:1px solid var(--line);border-radius:20px;background:var(--paper);color:var(--green);font-size:12px}.message-sources button:hover{border-color:var(--green)}
 

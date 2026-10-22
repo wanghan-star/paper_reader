@@ -5,6 +5,7 @@ import { instantVisual } from "@/lib/lesson-preview";
 import type { Lesson } from "@/lib/lesson";
 import type { StoredMessage } from "@/lib/records";
 import type { Paper } from "./use-paper";
+import { questionContext } from "@/lib/retrieval";
 
 export type Message = StoredMessage & { visual?: Lesson["visual"]; streaming?: boolean; instant?: boolean };
 export type Attachment = { type: "image" | "text"; value: string; page: number; context: string };
@@ -21,12 +22,11 @@ export function useChat(paper: Paper, { teaching, modelFor, requireLogin, openAs
   const controllerRef = useRef<AbortController | null>(null), messageId = useRef(0);
   const { pages, epoch } = paper;
 
-  /** What the assistant reads alongside the question, unless the caller supplies its own. */
-  const contextFor = (sourcePage?: number) => sourcePage
-    ? pages[sourcePage - 1]?.text || ""
-    : paper.tab === "bilingual" && !paper.continuous
-      ? paper.shown.map(i => `原文第 ${i + 1} 页\n${pages[i].text}`).join("\n\n")
-      : pages[paper.page - 1]?.text || "";
+  /**
+   * What the assistant reads alongside the question, unless the caller supplies its own: the page the question
+   * is about, plus passages from anywhere in the paper that match it.
+   */
+  const contextFor = (q: string, page?: number) => questionContext(pages, page ? [page - 1] : paper.visible, q);
 
   const ask = async (override?: string, sourcePage?: number, contextOverride?: string) => {
     if (busy || paper.loading) return;
@@ -46,7 +46,9 @@ export function useChat(paper: Paper, { teaching, modelFor, requireLogin, openAs
     const controller = new AbortController(); controllerRef.current = controller; const version = epoch.current;
     const update = (id: number, change: (m: Message) => Message) => setMessages(prev => prev.map(m => m.id === id ? change(m) : m));
     try {
-      const payload = { question: combined, title: paper.title, page: usedPage, context: contextOverride || selected?.context || contextFor(sourcePage), image: user.image, history, teaching };
+      const found = contextOverride ? null : contextFor(combined, selected?.page || sourcePage);
+      if (found?.sources.length) update(replyId, m => ({ ...m, sources: found.sources }));
+      const payload = { question: combined, title: paper.title, page: usedPage, context: contextOverride || found!.context, image: user.image, history, teaching };
       const result = await callCodex("chat", payload, modelFor(!!user.image), controller.signal, p => {
         if (version === epoch.current) update(replyId, m => ({ ...m, content: p.content || "", visual: p.visual || m.visual, instant: p.visual ? false : m.instant }));
       });

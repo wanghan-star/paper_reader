@@ -37,3 +37,21 @@ test('reading groups combine pages without losing or duplicating original page i
   assert.deepEqual(readingIndexes(5,3,'scroll',2),[0,1,2,3,4]);assert.deepEqual(readingIndexes(5,3,'paged',2,true),[2]);
 });
 test('custom background chooses a readable foreground on bright and dark paper',()=>{assert.equal(colorInk('#ffffff'),'#2b332e');assert.equal(colorInk('#101010'),'#edf2eb');});
+
+const retrieval=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(fs.readFileSync('lib/retrieval.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64'));
+test('whole-paper questions find matching passages on other pages, figures first',()=>{
+  const page=(...rows)=>({text:rows.map(r=>r[0]).join('\n'),heading:'',sentences:rows.map(([en,zh,heading],id)=>({id,en,zh,heading}))});
+  const pages=[
+    page(['1 Introduction','1 引言',true],['Voltage-controlled magnetic anisotropy lowers the write energy of the junction considerably.','压控磁各向异性显著降低了结的写入能量。']),
+    page(['The calibration circuit trims the pulse width so that every neuron fires with the same probability.','校准电路调节脉冲宽度，使每个神经元以相同概率发放。'],['Fig. 3. Measured switching probability against pulse width for the fabricated devices.','图 3。器件的开关概率随脉冲宽度的测量结果。']),
+    page(['The accelerator reaches 27 TOPS/W at 0.8 V with the proposed readout scheme.','在 0.8 V 下，采用所提读出方案的加速器达到 27 TOPS/W。'])
+  ];
+  assert.deepEqual(retrieval.references('图3和公式 (2) 以及 Table II 说明了什么'),['fig:3','eq:2','table:ii']);
+  const hits=retrieval.search(retrieval.passages(pages),'图 3 里的开关概率是怎么测的？');
+  assert.equal(hits[0].page,2);assert.match(hits[0].text,/^Fig\. 3/);
+  assert.equal(retrieval.search(retrieval.passages(pages),'VCMA 为什么能降低写入能量')[0].page,1,'a Chinese question matches the translation');
+  const {context,sources}=retrieval.questionContext(pages,[2],'压控磁各向异性如何降低写入能量？');
+  assert.match(context,/当前页面/);assert.match(context,/第 1 页摘录/);assert.deepEqual(sources,[1]);
+  assert.ok(!retrieval.questionContext(pages,[0],'写入能量').sources.includes(1),'pages already on screen are not repeated');
+  assert.ok(retrieval.questionContext(pages,[0],'x'.repeat(10)).context.length<22000);
+});
