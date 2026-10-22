@@ -24,7 +24,11 @@ export function createRecordStore(root){
       const rows=[];
       for(const name of names){
         if(!name.endsWith('.meta.json')||!ID.test(name.slice(0,-10)))continue;
-        try{rows.push(JSON.parse(await fs.readFile(path.join(root,name),'utf8')));}catch{/* skip an unreadable entry */}
+        try{
+          const meta=JSON.parse(await fs.readFile(path.join(root,name),'utf8')),size=async ext=>{try{return (await fs.stat(file(meta.id,ext))).size;}catch{return 0;}};
+          // Sizes are read live, so the library always shows what is on disk now.
+          rows.push({...meta,pdfBytes:await size('.pdf'),dataBytes:await size('.json')+await size('.meta.json')});
+        }catch{/* skip an unreadable entry */}
       }
       return rows.sort((a,b)=>b.updated-a.updated);
     },
@@ -42,6 +46,8 @@ export function createRecordStore(root){
       await write(file(id,'.pdf'),bytes);
     },
     async openPdf(id){const target=file(id,'.pdf');const {size}=await fs.stat(target);return {size,stream:createReadStream(target)};},
+    /** Free the PDF copy but keep translation and chat; uploading the same PDF again restores the record. */
+    async removePdf(id){await fs.rm(file(id,'.pdf'),{force:true});},
     async remove(id){for(const extension of ['.json','.meta.json','.pdf'])await fs.rm(file(id,extension),{force:true});}
   };
 }

@@ -44,7 +44,8 @@ test('reading records keep translation, chat and the paper, and refuse unsafe na
     const record=await store.read(id);assert.deepEqual(record.pages,pages);assert.equal(record.messages[0].content,'问');
     await store.savePdf(id,Buffer.from('%PDF-1.7 demo'));assert.equal((await store.openPdf(id)).size,13);(await store.openPdf(id)).stream.destroy();
     await assert.rejects(store.savePdf(id,Buffer.from('not a pdf')));
-    assert.deepEqual((await store.list()).map(r=>r.id),[id]);
+    const [row]=await store.list();assert.equal(row.id,id);assert.equal(row.pdfBytes,13);assert.ok(row.dataBytes>100);
+    await store.removePdf(id);assert.equal((await store.list())[0].pdfBytes,0,'the PDF copy is freed');assert.ok(await store.read(id),'translation and chat stay');
     for(const bad of ['../secret','0123','0123456789ABCDEF0123456789abcdef','0123456789abcdef0123456789abcde/'])await assert.rejects(store.read(bad));
     await assert.rejects(store.save(id,{pages:[]}));
     await store.remove(id);assert.deepEqual(await store.list(),[]);assert.equal(await store.read(id),null);

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { deleteRecord, fetchPdf, hashBytes, listRecords, readRecord, savePdf, saveRecord, storedMessages, type PaperRecord, type RecordSummary } from "@/lib/records";
+import { deleteRecord, fetchPdf, hashBytes, listLibrary, readRecord, releasePdf, revealRecords, savePdf, saveRecord, storedMessages, type PaperRecord, type RecordSummary } from "@/lib/records";
 import type { GuideState } from "@/lib/guide";
 import type { GlossaryEntry } from "@/lib/glossary";
 import type { Message } from "./use-chat";
@@ -77,6 +77,22 @@ export function useLibrary(paper: Paper, { notify, autoTranslate, translateAll, 
     });
   };
 
+  const [folder, setFolder] = useState("");
+  const refresh = () => listLibrary().then(data => { setRecords(data.records); setFolder(data.folder); }).catch(() => { /* keep the list shown */ });
+  /** Delete several records at once; the dialog has already asked. */
+  const removeMany = async (ids: string[]) => {
+    let failed = 0;
+    for (const id of ids) { try { await deleteRecord(id); if (id === recordId) setRecordId(null); } catch { failed++; } }
+    await refresh(); notify(failed ? `有 ${failed} 条记录未能删除。` : `已删除 ${ids.length} 条阅读记录。`, failed > 0);
+  };
+  /** Free PDF copies but keep translations and chats. The paper on screen keeps its copy. */
+  const releaseMany = async (ids: string[]) => {
+    const targets = ids.filter(id => id !== recordId);
+    for (const id of targets) { try { await releasePdf(id); } catch { /* reported by the size that remains */ } }
+    await refresh();
+    notify(targets.length < ids.length ? "正在阅读的这篇保留了 PDF 副本，其余已释放。" : `已释放 ${targets.length} 个 PDF 副本，译文和对话都还在。`);
+  };
+  const reveal = () => revealRecords().catch(e => notify((e as Error).message || "无法打开文件夹。", true));
   const removeRecord = async (entry: RecordSummary) => {
     if (!window.confirm(`删除《${entry.title}》的阅读记录？\n译文、对话和保存的 PDF 副本都会被永久删除。`)) return;
     try { await deleteRecord(entry.id); setRecords(prev => prev.filter(r => r.id !== entry.id)); if (entry.id === recordId) setRecordId(null); notify("阅读记录已删除。"); }
@@ -86,8 +102,8 @@ export function useLibrary(paper: Paper, { notify, autoTranslate, translateAll, 
   // Continue with the paper that was open last time; the sample is only for a first visit.
   useEffect(() => {
     let alive = true; const version = epoch.current;
-    listRecords()
-      .then(async list => { if (!alive) return; setRecords(list); if (list[0] && version === epoch.current) await openRecord(list[0].id, true); })
+    listLibrary()
+      .then(async ({ records: list, folder }) => { if (!alive) return; setRecords(list); setFolder(folder); if (list[0] && version === epoch.current) await openRecord(list[0].id, true); })
       .catch(() => { /* the reader still works without the record service */ })
       .finally(() => { if (alive) setBooted(true); });
     loadPdf("/sample.pdf")
@@ -110,12 +126,12 @@ export function useLibrary(paper: Paper, { notify, autoTranslate, translateAll, 
     const timer = setTimeout(() => {
       const done = Object.fromEntries(Object.entries(guides).filter(([, g]) => g.status === "done"));
       saveRecord(recordId, { title, filename, page, pages, messages: storedMessages(messages), guides: done, glossary })
-        .then(meta => { setSaveState("saved"); setRecords(prev => [meta, ...prev.filter(r => r.id !== meta.id)]); })
+        .then(meta => { setSaveState("saved"); setRecords(prev => { const old = prev.find(r => r.id === meta.id); return [{ ...old, ...meta }, ...prev.filter(r => r.id !== meta.id)]; }); })
         .catch(() => setSaveState("failed"));
     }, 2000);
     return () => clearTimeout(timer);
   }, [recordId, isDemo, loading, pages, page, title, filename, guides, messages, glossary]);
 
-  return { records, setRecords, recordId, saveState, booted, upload, openRecord, removeRecord };
+  return { records, setRecords, recordId, saveState, booted, upload, openRecord, removeRecord, folder, refresh, removeMany, releaseMany, reveal };
 }
 export type Library = ReturnType<typeof useLibrary>;

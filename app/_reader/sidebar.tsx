@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { Check, ChevronRight, FileText, History, Leaf, Trash2, X } from "lucide-react";
+import { Check, ChevronRight, FileText, HardDrive, History, Leaf, Trash2, X } from "lucide-react";
+import { formatBytes } from "@/lib/records";
 import { pageLabel } from "@/lib/paper";
 import type { GlossaryEntry } from "@/lib/glossary";
 import GlossaryList from "./glossary-list";
@@ -8,8 +9,8 @@ import type { GlossaryState } from "./use-glossary";
 import type { Paper } from "./use-paper";
 import type { Library } from "./use-library";
 
-export default function Sidebar({ paper, library, glossary, busy, onTerm, onAskTerm, open, onClose, codexReady, model, onSettings }: {
-  paper: Paper; library: Library; glossary: GlossaryState; busy: boolean; onTerm: (entry: GlossaryEntry) => void; onAskTerm: (entry: GlossaryEntry) => void;
+export default function Sidebar({ paper, library, glossary, busy, onTerm, onAskTerm, onManage, open, onClose, codexReady, model, onSettings }: {
+  paper: Paper; library: Library; glossary: GlossaryState; busy: boolean; onTerm: (entry: GlossaryEntry) => void; onAskTerm: (entry: GlossaryEntry) => void; onManage: () => void;
   open: boolean; onClose: () => void; codexReady: boolean | null; model: string; onSettings: () => void;
 }) {
   const [view, setView] = useState<"pages" | "terms">("pages");
@@ -24,6 +25,7 @@ export default function Sidebar({ paper, library, glossary, busy, onTerm, onAskT
         <button className="recent-open" disabled={loading || r.id === recordId} onClick={() => void library.openRecord(r.id)} title={r.title}><strong>{r.title}</strong><small>{r.pageCount} 页 · 译 {r.total ? Math.round(r.translated / r.total * 100) : 0}%{r.messages ? ` · ${r.messages} 条对话` : ""}</small></button>
         <button className="recent-delete" aria-label={`删除《${r.title}》的阅读记录`} title="删除这条记录" onClick={() => void library.removeRecord(r)}><Trash2 size={13}/></button>
       </li>)}</ul>
+      <button className="recent-manage" onClick={onManage}><HardDrive size={13}/>管理空间 · 共 {formatBytes(records.reduce((n, r) => n + (r.pdfBytes || 0) + (r.dataBytes || 0), 0))}</button>
     </details>}
     <div className="sidebar-tabs segmented" role="tablist" aria-label="目录与术语">
       <button role="tab" aria-selected={view === "pages"} className={view === "pages" ? "selected" : ""} onClick={() => setView("pages")}>论文目录<span>{pages.length}</span></button>

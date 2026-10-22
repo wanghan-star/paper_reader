@@ -44,14 +44,21 @@ const server=http.createServer(async(req,res)=>{
   }
   if(url.pathname==='/api/records'||url.pathname.startsWith('/api/records/')){
     try{
-      if(url.pathname==='/api/records'&&req.method==='GET'){json(res,200,{records:await records.list()});return;}
+      if(url.pathname==='/api/records'&&req.method==='GET'){json(res,200,{records:await records.list(),folder:records.root});return;}
+      if(url.pathname==='/api/records/reveal'&&req.method==='POST'){
+        fs.mkdirSync(records.root,{recursive:true});
+        const opener=process.platform==='win32'?'explorer.exe':process.platform==='darwin'?'open':'xdg-open';
+        spawn(opener,[records.root],{detached:true,stdio:'ignore',windowsHide:false}).on('error',()=>{}).unref();
+        json(res,200,{opened:true});return;
+      }
       const match=/^\/api\/records\/([a-f0-9]{32})(\/pdf)?$/.exec(url.pathname);
       if(!match){json(res,404,{error:'阅读记录接口不存在。'});return;}
       const [,id,pdf]=match;
       if(pdf&&req.method==='GET'){
-        let source;try{source=await records.openPdf(id);}catch{json(res,404,{error:'这篇论文的 PDF 副本不存在，请重新上传。'});return;}
+        let source;try{source=await records.openPdf(id);}catch{json(res,404,{error:'这篇论文的 PDF 副本已释放。重新上传同一份 PDF，译文和对话会自动恢复。'});return;}
         res.writeHead(200,{'Content-Type':'application/pdf','Content-Length':source.size,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});source.stream.pipe(res);return;
       }
+      if(pdf&&req.method==='DELETE'){await records.removePdf(id);json(res,200,{deleted:true});return;}
       if(pdf&&req.method==='PUT'){await records.savePdf(id,await readBody(req,61*1024*1024));json(res,200,{saved:true});return;}
       if(!pdf&&req.method==='GET'){const record=await records.read(id);json(res,record?200:404,record||{error:'没有这篇论文的阅读记录。'});return;}
       if(!pdf&&req.method==='PUT'){

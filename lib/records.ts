@@ -3,7 +3,7 @@ import type { Lesson } from "./lesson";
 import type { GuideState } from "./guide";
 import type { GlossaryEntry } from "./glossary";
 
-export type RecordSummary={id:string;title:string;filename:string;pageCount:number;total:number;translated:number;messages:number;updated:number};
+export type RecordSummary={id:string;title:string;filename:string;pageCount:number;total:number;translated:number;messages:number;terms?:number;updated:number;pdfBytes?:number;dataBytes?:number};
 export type StoredMessage={id:number;role:"user"|"assistant";content:string;page:number;image?:string;error?:boolean;lesson?:Lesson;sources?:number[]};
 /** Messages as kept in a record: unfinished answers wait until they complete, very large screenshots are dropped. */
 export const storedMessages=(messages:(StoredMessage&{streaming?:boolean})[]):StoredMessage[]=>messages.filter(m=>!m.streaming).map(m=>({id:m.id,role:m.role,content:m.content,page:m.page,...(m.image&&m.image.length<=600000?{image:m.image}:{}),...(m.error?{error:true}:{}),...(m.lesson?{lesson:m.lesson}:{}),...(m.sources?.length?{sources:m.sources}:{})}));
@@ -20,7 +20,12 @@ async function check(response:Response){
   try{message=(await response.json() as {error?:string}).error||message;}catch{/* keep the default */}
   throw new Error(message);
 }
-export const listRecords=async()=>(await (await check(await fetch("/api/records",{cache:"no-store"}))).json() as {records:RecordSummary[]}).records;
+export const listLibrary=async()=>await (await check(await fetch("/api/records",{cache:"no-store"}))).json() as {records:RecordSummary[];folder:string};
+export const listRecords=async()=>(await listLibrary()).records;
+export const releasePdf=async(id:string)=>{await check(await fetch(`/api/records/${id}/pdf`,{method:"DELETE"}));};
+export const revealRecords=async()=>{await check(await fetch("/api/records/reveal",{method:"POST"}));};
+/** "12.3 MB" style sizes for the library. */
+export const formatBytes=(n=0)=>n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(0)} KB`:`${(n/1048576).toFixed(1)} MB`;
 export async function readRecord(id:string):Promise<PaperRecord|null>{
   const response=await fetch(`/api/records/${id}`,{cache:"no-store"});
   return response.status===404?null:await (await check(response)).json() as PaperRecord;

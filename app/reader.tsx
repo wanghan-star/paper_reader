@@ -18,6 +18,7 @@ import { useChat } from "./_reader/use-chat";
 import { useLibrary } from "./_reader/use-library";
 import { useGlossary } from "./_reader/use-glossary";
 import GlossaryHighlight from "./_reader/glossary-highlight";
+import RecordsDialog from "./_reader/records-dialog";
 import Header from "./_reader/header";
 import Sidebar from "./_reader/sidebar";
 import Toolbar from "./_reader/toolbar";
@@ -28,7 +29,7 @@ import { citation, findTarget, type RefKind } from "@/lib/references";
 export default function Reader() {
   const [toast, setToast] = useState<Toast | null>(null);
   const notify = useCallback((message: string, error = false) => setToast({ message, error }), []);
-  const [settingsOpen, setSettingsOpen] = useState(false), [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false), [appearanceOpen, setAppearanceOpen] = useState(false), [recordsOpen, setRecordsOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false), [navOpen, setNavOpen] = useState(false);
   const [selection, setSelection] = useState<Selection | null>(null), [dragging, setDragging] = useState(false);
   const [returnPoint, setReturnPoint] = useState<ReturnPoint | null>(null), [citeCard, setCiteCard] = useState<CiteCard | null>(null);
@@ -36,7 +37,7 @@ export default function Reader() {
   const [intro, setIntro] = useState<"off" | "on" | "leaving">("off"), introStart = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null), chatEnd = useRef<HTMLDivElement>(null), input = useRef<HTMLTextAreaElement>(null), scrollFrame = useRef(0);
 
-  const closeSettings = useCallback(() => setSettingsOpen(false), []), closeAppearance = useCallback(() => setAppearanceOpen(false), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []), closeAppearance = useCallback(() => setAppearanceOpen(false), []), closeRecords = useCallback(() => setRecordsOpen(false), []);
   const prefs = useSettings(notify), { settings } = prefs;
   const paper = usePaper(settings), { pages, page, tab, continuous, shown, reader } = paper;
   useLinkedHighlight(reader);
@@ -140,6 +141,7 @@ export default function Reader() {
       {navOpen && <button className="panel-shade nav-shade" aria-label="关闭论文目录" onClick={() => setNavOpen(false)}/>}
       <Sidebar paper={paper} library={library} glossary={glossary} busy={chat.busy || paper.loading}
         onTerm={entry => paper.locateText(entry.page, entry.term)} onAskTerm={entry => void chat.ask(`请结合这篇论文解释术语「${entry.term}」（${entry.zh}）：它是什么、在论文里起什么作用、和哪些概念有关。`, entry.page)}
+        onManage={() => { void library.refresh(); setRecordsOpen(true); }}
         open={navOpen} onClose={() => setNavOpen(false)} codexReady={prefs.codexReady} model={settings.codexModel} onSettings={() => setSettingsOpen(true)}/>
       <main className="reader-main">
         <Toolbar paper={paper} settings={settings} saveSettings={prefs.saveSettings} navCollapsed={prefs.navCollapsed} onToggleNav={prefs.toggleNav} onOpenNav={() => setNavOpen(true)}
@@ -184,6 +186,7 @@ export default function Reader() {
     {paper.loading && <LoadingBar/>}
     {intro !== "off" && <StartupSplash leaving={intro === "leaving"} status={library.booted ? "准备好了" : library.records.length ? "正在恢复上次的阅读…" : "正在打开阅读空间…"}/>}
     {appearanceOpen && <AppearanceDialog settings={settings} onSave={s => prefs.saveSettings(s, "阅读偏好已保存")} onClose={closeAppearance}/>}
+    {recordsOpen && <RecordsDialog records={library.records} currentId={library.recordId} folder={library.folder} onClose={closeRecords} onRelease={library.releaseMany} onRemove={library.removeMany} onReveal={library.reveal} onOpen={id => void library.openRecord(id)}/>}
     {settingsOpen && <SettingsDialog settings={settings} onSave={prefs.saveSettings} onStatus={prefs.setCodexReady} onClose={closeSettings}/>}
   </div>;
 }
