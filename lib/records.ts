@@ -1,12 +1,13 @@
 import type { PaperPage } from "./paper";
 import type { Lesson } from "./lesson";
 import type { GuideState } from "./guide";
+import type { GlossaryEntry } from "./glossary";
 
 export type RecordSummary={id:string;title:string;filename:string;pageCount:number;total:number;translated:number;messages:number;updated:number};
 export type StoredMessage={id:number;role:"user"|"assistant";content:string;page:number;image?:string;error?:boolean;lesson?:Lesson;sources?:number[]};
 /** Messages as kept in a record: unfinished answers wait until they complete, very large screenshots are dropped. */
 export const storedMessages=(messages:(StoredMessage&{streaming?:boolean})[]):StoredMessage[]=>messages.filter(m=>!m.streaming).map(m=>({id:m.id,role:m.role,content:m.content,page:m.page,...(m.image&&m.image.length<=600000?{image:m.image}:{}),...(m.error?{error:true}:{}),...(m.lesson?{lesson:m.lesson}:{}),...(m.sources?.length?{sources:m.sources}:{})}));
-export type PaperRecord={title:string;filename:string;page:number;pages:PaperPage[];messages:StoredMessage[];guides:Record<number,GuideState>};
+export type PaperRecord={title:string;filename:string;page:number;pages:PaperPage[];messages:StoredMessage[];guides:Record<number,GuideState>;glossary?:GlossaryEntry[]};
 
 /** The same PDF always maps to the same record, whatever the file is called. */
 export async function hashBytes(bytes:Uint8Array):Promise<string>{

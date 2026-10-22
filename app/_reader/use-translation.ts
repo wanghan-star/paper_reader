@@ -10,8 +10,8 @@ import type { Paper } from "./use-paper";
 const FATAL = /额度|登录|未检测到|模型|本地服务|连接/;
 
 /** Page recognition and translation, up to three pages at a time, pages on screen first. */
-export function useTranslation(paper: Paper, { model, notify, requireLogin, onRecognized }: {
-  model: string; notify: (message: string, error?: boolean) => void; requireLogin: () => boolean; onRecognized: (index: number) => void;
+export function useTranslation(paper: Paper, { model, glossary, notify, requireLogin, onRecognized }: {
+  model: string; glossary: { term: string; zh: string }[]; notify: (message: string, error?: boolean) => void; requireLogin: () => boolean; onRecognized: (index: number) => void;
 }) {
   const [status, setStatus] = useState("");
   const controllerRef = useRef<AbortController | null>(null);
@@ -59,7 +59,7 @@ export function useTranslation(paper: Paper, { model, notify, requireLogin, onRe
           const lookup = new Map(rows.map(r => [r.id, r.zh]));
           setPages(prev => prev.map((value, i) => i === index ? { ...value, sentences: value.sentences.map(s => lookup.has(s.id) ? { ...s, zh: lookup.get(s.id) } : s) } : value));
         };
-        const result = await callCodex("translate", { sentences: batches[b].map(({ id, en }) => ({ id, en })) }, model, controller.signal, progress => {
+        const result = await callCodex("translate", { sentences: batches[b].map(({ id, en }) => ({ id, en })), glossary: glossary.slice(0, 60).map(({ term, zh }) => ({ term, zh })) }, model, controller.signal, progress => {
           if (epoch.current !== version || !progress.translation) return;
           const { translations, completed, total, retrying } = progress.translation;
           apply(translations); active.set(index, `${state} · ${completed}/${total} 句${retrying ? " · 自动补译" : ""}`); report();

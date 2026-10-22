@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeVisual,parseTeaching,partialTeaching,schemaForTeaching,teachingPromptFor} from '../scripts/lesson-format.mjs';
 import {parseGuide} from '../scripts/reading-guide.mjs';
+import {parseGlossary} from '../scripts/glossary.mjs';
+import {glossaryFor} from '../scripts/codex-bridge.mjs';
 import {teachingPolicy} from '../scripts/teaching-policy.mjs';
 import {JobQueue,validateTask} from '../scripts/codex-bridge.mjs';
 const data={content:'中文解释：$QK^\\top$\n包含“引号”、\\反斜线。',lesson:{visual:{type:'tokens',title:'KV Cache',xLabel:'',yLabel:'',steps:[{label:'我',detail:'新计算',value:.3},{label:'喜欢',detail:'复用“我”的 K/V',value:.6},{label:'学习',detail:'读取历史 {K,V}',value:1}]},quiz:{question:'历史 K/V 怎么处理？',options:['复用','丢弃'],correctIndex:0,explanation:'复用，但注意力仍读取历史。'}}};
@@ -80,4 +82,15 @@ test('diagrams are drawn only for genuinely complex flows and mechanisms',()=>{
   assert.deepEqual(parsed,{content:'讲解'});
   assert.match(teachingPromptFor(teachingPolicy('解释这段话')),/一律不画/);
   assert.equal(teachingPolicy('请把刚才讲的内容画成流程图或机理图。').visualRequested,true);
+});
+test('glossary entries are cleaned, deduplicated and only relevant ones reach a translation batch',()=>{
+  const raw={terms:[{term:' VCMA ',zh:'压控磁各向异性',definition:'用电压而非电流改变磁化方向'},{term:'vcma',zh:'重复',definition:''},{term:'MTJ',zh:'',definition:'无译名'},{term:'SNN',zh:'脉冲神经网络',definition:'x'.repeat(500)}]};
+  const {terms}=parseGlossary(JSON.stringify(raw));
+  assert.deepEqual(terms.map(t=>t.term),['VCMA','SNN']);assert.equal(terms[1].definition.length,240);
+  assert.throws(()=>parseGlossary('oops'));
+  const task=validateTask({task:'translate',sentences:[{id:1,en:'The VCMA write path is fast.'}],glossary:[{term:'VCMA',zh:'压控磁各向异性'},{term:'SNN',zh:'脉冲神经网络'},{term:'',zh:'x'},{bad:1}]});
+  assert.deepEqual(task.glossary.map(g=>g.term),['VCMA','SNN']);
+  assert.deepEqual(glossaryFor(task).map(g=>g.term),['VCMA'],'only terms in the batch');
+  assert.throws(()=>validateTask({task:'glossary',candidates:['VCMA'],context:''}));
+  assert.equal(validateTask({task:'glossary',candidates:['VCMA(4)'],context:'text',title:'T'}).candidates[0],'VCMA(4)');
 });

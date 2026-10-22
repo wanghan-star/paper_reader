@@ -40,7 +40,7 @@ test('reading records keep translation, chat and the paper, and refuse unsafe na
     assert.deepEqual(await store.list(),[]);assert.equal(await store.read(id),null);
     const pages=[{text:'A. B.',heading:'Intro',sentences:[{id:0,en:'A.',zh:'甲。'},{id:1,en:'B.'}]}];
     const meta=await store.save(id,{title:'Paper',filename:'p.pdf',page:1,pages,messages:[{id:1,role:'user',content:'问',page:1}],guides:{0:{status:'done',points:[]}}});
-    assert.deepEqual({...meta,updated:0},{id,title:'Paper',filename:'p.pdf',pageCount:1,total:2,translated:1,messages:1,updated:0});
+    assert.deepEqual({...meta,updated:0},{id,title:'Paper',filename:'p.pdf',pageCount:1,total:2,translated:1,messages:1,terms:0,updated:0});
     const record=await store.read(id);assert.deepEqual(record.pages,pages);assert.equal(record.messages[0].content,'问');
     await store.savePdf(id,Buffer.from('%PDF-1.7 demo'));assert.equal((await store.openPdf(id)).size,13);(await store.openPdf(id)).stream.destroy();
     await assert.rejects(store.savePdf(id,Buffer.from('not a pdf')));

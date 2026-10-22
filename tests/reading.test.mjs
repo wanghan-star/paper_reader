@@ -55,3 +55,12 @@ test('whole-paper questions find matching passages on other pages, figures first
   assert.ok(!retrieval.questionContext(pages,[0],'写入能量').sources.includes(1),'pages already on screen are not repeated');
   assert.ok(retrieval.questionContext(pages,[0],'x'.repeat(10)).context.length<22000);
 });
+
+const glossary=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(fs.readFileSync('lib/glossary.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64'));
+test('glossary candidates come from defined phrases and repeated acronyms; terms match whole words',()=>{
+  const pages=[{text:'',heading:'',sentences:[{id:0,en:'Voltage-Controlled Magnetic Anisotropy (VCMA) lowers write energy in a VCMA-MTJ.'},{id:1,en:'The MTJ is read by an ADC. IEEE IEEE'}]},{text:'',heading:'',sentences:[{id:0,en:'Each MTJ and the VCMA effect.'}]}];
+  const c=glossary.candidates(pages);
+  assert.ok(c.includes('Voltage-Controlled Magnetic Anisotropy (VCMA)'));assert.ok(c.some(x=>x.startsWith('MTJ(')));assert.ok(!c.some(x=>x.startsWith('ADC(')),'used once');assert.ok(!c.some(x=>x.startsWith('IEEE')));
+  assert.equal(glossary.firstPage(pages,'MTJ'),1);assert.equal(glossary.firstPage(pages,'effect'),2);
+  const p=glossary.termPattern('MTJ');assert.deepEqual('MTJs and MTJ, not SMTJ'.match(p),['MTJs','MTJ'],'singular and plural, never inside another word');
+});

@@ -40,13 +40,20 @@ export function usePaper(settings: Settings) {
     setTimeout(retry, 120); return false;
   };
 
+  /** Bring the first block on a page that mentions a term into view. */
+  const locateText = (n: number, term: string) => {
+    const word = term.replace(/\$/g, "").trim().toLowerCase();
+    const id = pages[n - 1]?.sentences.find(s => s.en.toLowerCase().includes(word))?.id;
+    locate(n, id ?? 0);
+  };
+
   const totalSentences = pages.reduce((sum, p) => sum + p.sentences.length, 0), translated = pages.reduce((sum, p) => sum + p.sentences.filter(s => s.zh).length, 0);
   const progress = totalSentences ? Math.round(translated / totalSentences * 100) : 0;
 
   return {
     pages, setPages, page, setPage, isDemo, setDemo, title, setTitle, filename, setFilename, doc, setDoc, loading, setLoading,
     tab, setTab, zoom, setZoom, docRef, epoch, reader, continuous, shown, step, groupStart, lastGroup, visible,
-    goToPage, scrollToPage, showOriginal, locate, progress, subtitle: demo.subtitle,
+    goToPage, scrollToPage, showOriginal, locate, locateText, progress, subtitle: demo.subtitle,
   };
 }
 export type Paper = ReturnType<typeof usePaper>;

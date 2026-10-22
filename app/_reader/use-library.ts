@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { deleteRecord, fetchPdf, hashBytes, listRecords, readRecord, savePdf, saveRecord, storedMessages, type PaperRecord, type RecordSummary } from "@/lib/records";
 import type { GuideState } from "@/lib/guide";
+import type { GlossaryEntry } from "@/lib/glossary";
 import type { Message } from "./use-chat";
 import { cleanTitle, loadPdf, paperTitle, readPages } from "./pdf";
 import type { Paper } from "./use-paper";
@@ -11,9 +12,9 @@ import type { Paper } from "./use-paper";
  * Opening papers (upload, the reading records, the sample) and saving the open one.
  * `onSwitch` stops work for the previous paper; `onShow` hands the restored chat and guides back.
  */
-export function useLibrary(paper: Paper, { notify, autoTranslate, translateAll, onSwitch, onShow, messages, guides }: {
+export function useLibrary(paper: Paper, { notify, autoTranslate, translateAll, onSwitch, onShow, messages, guides, glossary }: {
   notify: (message: string, error?: boolean) => void; autoTranslate: boolean; translateAll: () => void;
-  onSwitch: () => void; onShow: (record: PaperRecord) => void; messages: Message[]; guides: Record<number, GuideState>;
+  onSwitch: () => void; onShow: (record: PaperRecord) => void; messages: Message[]; guides: Record<number, GuideState>; glossary: GlossaryEntry[];
 }) {
   const [records, setRecords] = useState<RecordSummary[]>([]), [recordId, setRecordId] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"saved" | "saving" | "failed">("saved"), [booted, setBooted] = useState(false);
@@ -108,12 +109,12 @@ export function useLibrary(paper: Paper, { notify, autoTranslate, translateAll, 
     setSaveState("saving");
     const timer = setTimeout(() => {
       const done = Object.fromEntries(Object.entries(guides).filter(([, g]) => g.status === "done"));
-      saveRecord(recordId, { title, filename, page, pages, messages: storedMessages(messages), guides: done })
+      saveRecord(recordId, { title, filename, page, pages, messages: storedMessages(messages), guides: done, glossary })
         .then(meta => { setSaveState("saved"); setRecords(prev => [meta, ...prev.filter(r => r.id !== meta.id)]); })
         .catch(() => setSaveState("failed"));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [recordId, isDemo, loading, pages, page, title, filename, guides, messages]);
+  }, [recordId, isDemo, loading, pages, page, title, filename, guides, messages, glossary]);
 
   return { records, setRecords, recordId, saveState, booted, upload, openRecord, removeRecord };
 }

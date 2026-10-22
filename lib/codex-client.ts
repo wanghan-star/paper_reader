@@ -1,7 +1,7 @@
 import type { Lesson } from "./lesson";
 import type { PageBlock } from './page-content';
 import type { GuidePoint } from './guide';
-type Result={content:string;translations:{id:number;zh:string}[];lesson?:Lesson;blocks?:PageBlock[];points?:GuidePoint[]};
+type Result={content:string;translations:{id:number;zh:string}[];lesson?:Lesson;blocks?:PageBlock[];points?:GuidePoint[];terms?:{term:string;zh:string;definition:string}[]};
 export type CodexProgress={content?:string;visual?:Lesson["visual"];translation?:{translations:{id:number;zh:string}[];completed:number;total:number;retrying:boolean}};
 type Job={id:string;status:string;error?:string;result?:Result;partial?:string;visual?:Lesson["visual"];translation?:CodexProgress["translation"]};
 async function read(response:Response){

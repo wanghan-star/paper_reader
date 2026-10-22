@@ -16,6 +16,8 @@ import { useTranslation } from "./_reader/use-translation";
 import { useGuides } from "./_reader/use-guides";
 import { useChat } from "./_reader/use-chat";
 import { useLibrary } from "./_reader/use-library";
+import { useGlossary } from "./_reader/use-glossary";
+import GlossaryHighlight from "./_reader/glossary-highlight";
 import Header from "./_reader/header";
 import Sidebar from "./_reader/sidebar";
 import Toolbar from "./_reader/toolbar";
@@ -39,17 +41,18 @@ export default function Reader() {
   const requireLogin = () => { if (prefs.codexReady !== false) return true; setSettingsOpen(true); notify("请先登录本机 Codex，并测试连接。", true); return false; };
   const openAssistant = () => setAssistantOpen(true);
 
+  const glossary = useGlossary(paper, { model: prefs.chatModel, notify, requireLogin });
   const guides = useGuides(paper, { model: prefs.chatModel, notify, requireLogin, openAssistant });
-  const translation = useTranslation(paper, { model: settings.codexModel, notify, requireLogin, onRecognized: guides.forget });
+  const translation = useTranslation(paper, { model: settings.codexModel, glossary: glossary.glossary.entries, notify, requireLogin, onRecognized: guides.forget });
   const chat = useChat(paper, {
     teaching: settings.teaching, modelFor: prefs.modelFor, requireLogin, openAssistant,
     onAsk: () => { guides.abort(); guides.setOpen(false); }, onGuideRequest: () => void guides.request(), focusInput: () => input.current?.focus(),
   });
   const library = useLibrary(paper, {
     notify, autoTranslate: settings.autoTranslate, translateAll: () => void translation.translate(true),
-    onSwitch: () => { translation.reset(); chat.reset(); guides.abort(); },
-    onShow: record => { chat.restore(record.messages); guides.restore(record.guides || {}); setSelection(null); setNavOpen(false); },
-    messages: chat.messages, guides: guides.guides,
+    onSwitch: () => { translation.reset(); chat.reset(); guides.abort(); glossary.abort(); },
+    onShow: record => { chat.restore(record.messages); guides.restore(record.guides || {}); glossary.restore(record.glossary); setSelection(null); setNavOpen(false); },
+    messages: chat.messages, guides: guides.guides, glossary: glossary.glossary.entries,
   });
 
   useEffect(() => {
@@ -113,7 +116,9 @@ export default function Reader() {
     <input type="file" ref={fileInput} accept="application/pdf,.pdf" className="sr-only" aria-label="上传论文 PDF" onChange={e => { const file = e.target.files?.[0]; if (file) void library.upload(file)?.finally(() => { if (fileInput.current) fileInput.current.value = ""; }); }}/>
     <div className="workspace">
       {navOpen && <button className="panel-shade nav-shade" aria-label="关闭论文目录" onClick={() => setNavOpen(false)}/>}
-      <Sidebar paper={paper} library={library} open={navOpen} onClose={() => setNavOpen(false)} codexReady={prefs.codexReady} model={settings.codexModel} onSettings={() => setSettingsOpen(true)}/>
+      <Sidebar paper={paper} library={library} glossary={glossary} busy={chat.busy || paper.loading}
+        onTerm={entry => paper.locateText(entry.page, entry.term)} onAskTerm={entry => void chat.ask(`请结合这篇论文解释术语「${entry.term}」（${entry.zh}）：它是什么、在论文里起什么作用、和哪些概念有关。`, entry.page)}
+        open={navOpen} onClose={() => setNavOpen(false)} codexReady={prefs.codexReady} model={settings.codexModel} onSettings={() => setSettingsOpen(true)}/>
       <main className="reader-main">
         <Toolbar paper={paper} settings={settings} saveSettings={prefs.saveSettings} navCollapsed={prefs.navCollapsed} onToggleNav={prefs.toggleNav} onOpenNav={() => setNavOpen(true)}
           onToggleAssistant={() => setAssistantOpen(v => !v)} onExport={exportTranslation} translation={translation.status} onTranslate={(all, forceOCR) => void translation.translate(all, forceOCR)} onStop={translation.stop}/>
@@ -148,6 +153,7 @@ export default function Reader() {
           onExplain={(p, n) => { const v = pointSentence(p.id, n); if (v) void chat.ask(explainPointPrompt(p, v), n); }}
           onAnswer={(p, n, words) => { const v = pointSentence(p.id, n); if (v) void chat.ask(answerPointPrompt(p, v, words), n); }}/>}/>
     </div>
+    {tab === "bilingual" && glossary.glossary.entries.length > 0 && <GlossaryHighlight container={reader} entries={glossary.glossary.entries} version={`${page}-${continuous}-${settings.readingSpan}-${paper.zoom}`}/>}
     {selection && <SelectionPopup selection={selection} onExplain={() => attachText(selection.text, selection.page)}/>}
     {toast && <ToastView toast={toast} onClose={() => setToast(null)}/>}
     {dragging && <DropOverlay/>}

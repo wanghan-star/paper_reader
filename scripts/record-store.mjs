@@ -32,8 +32,8 @@ export function createRecordStore(root){
     async save(id,record){
       if(!record||typeof record!=='object'||!Array.isArray(record.pages)||!record.pages.length||record.pages.length>350)throw new Error('阅读记录内容无效。');
       const pages=record.pages,sentences=pages.flatMap(p=>Array.isArray(p?.sentences)?p.sentences:[]);
-      const stored={version:1,title:text(record.title,300),filename:text(record.filename,300),page:Number.isSafeInteger(record.page)?record.page:1,pages,messages:Array.isArray(record.messages)?record.messages.slice(-400):[],guides:record.guides&&typeof record.guides==='object'?record.guides:{},updated:Date.now()};
-      const meta={id,title:stored.title,filename:stored.filename,pageCount:pages.length,total:sentences.length,translated:sentences.filter(s=>s?.zh).length,messages:stored.messages.length,updated:stored.updated};
+      const stored={version:1,title:text(record.title,300),filename:text(record.filename,300),page:Number.isSafeInteger(record.page)?record.page:1,pages,messages:Array.isArray(record.messages)?record.messages.slice(-400):[],guides:record.guides&&typeof record.guides==='object'?record.guides:{},glossary:Array.isArray(record.glossary)?record.glossary.slice(0,80):[],updated:Date.now()};
+      const meta={id,title:stored.title,filename:stored.filename,pageCount:pages.length,total:sentences.length,translated:sentences.filter(s=>s?.zh).length,messages:stored.messages.length,terms:stored.glossary.length,updated:stored.updated};
       await write(file(id,'.json'),JSON.stringify(stored));await write(file(id,'.meta.json'),JSON.stringify(meta));
       return meta;
     },
