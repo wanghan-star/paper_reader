@@ -1,0 +1,84 @@
+/*
+ * One visual language across the reader: soft surfaces, consistent radii and shadows, calmer type,
+ * and theme colours everywhere (the earlier sheets hard-code the forest green in places).
+ */
+.app-shell{
+  --radius:12px;--radius-sm:8px;
+  --shadow-soft:0 1px 2px rgb(20 30 25/.04),0 6px 18px rgb(20 30 25/.05);
+  --shadow-lift:0 2px 6px rgb(20 30 25/.06),0 16px 40px rgb(20 30 25/.10);
+  --focus-ring:color-mix(in srgb,var(--green) 45%,transparent);
+  --tint:color-mix(in srgb,var(--green-soft) 55%,transparent);
+}
+.app-shell[data-dark=true]{--shadow-soft:0 1px 2px rgb(0 0 0/.25),0 6px 18px rgb(0 0 0/.25);--shadow-lift:0 2px 6px rgb(0 0 0/.3),0 16px 40px rgb(0 0 0/.4)}
+
+/* Keyboard focus is always visible. */
+.app-shell :is(button,a,input,select,textarea,summary,[role=button],[tabindex="0"]):focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+
+/* Thin scrollbars in the theme's colour. */
+.app-shell,.app-shell *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 38%,transparent) transparent}
+
+/* Header */
+.app-shell .app-header{background:color-mix(in srgb,var(--paper) 86%,transparent);backdrop-filter:saturate(1.15) blur(10px);-webkit-backdrop-filter:saturate(1.15) blur(10px)}
+.app-shell .header-center{padding:6px 16px;border-radius:999px;background:color-mix(in srgb,var(--chrome) 75%,transparent);border:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.app-shell .brand-mark{box-shadow:0 4px 12px color-mix(in srgb,var(--green) 28%,transparent)}
+
+/* Buttons */
+.app-shell .btn{border-radius:10px;transition:background .15s,border-color .15s,box-shadow .15s,transform .08s}
+.app-shell .btn:active:not(:disabled){transform:translateY(1px)}
+.app-shell .btn.primary{box-shadow:0 3px 10px color-mix(in srgb,var(--green) 26%,transparent)}
+.app-shell .btn.primary:hover:not(:disabled){box-shadow:0 5px 16px color-mix(in srgb,var(--green) 32%,transparent)}
+.app-shell .icon-btn{border-radius:9px;transition:background .15s,color .15s}
+.app-shell .icon-btn:hover:not(:disabled){background:var(--tint);color:var(--green)}
+.app-shell .segmented{border-radius:11px}.app-shell .segmented button{border-radius:8px;transition:background .15s,color .15s,box-shadow .15s}
+.app-shell .segmented button.selected{box-shadow:0 1px 3px rgb(20 30 25/.08)}
+
+/* Sidebar */
+.app-shell .document-card{border-radius:var(--radius);box-shadow:var(--shadow-soft);background:var(--paper)}
+.app-shell .page-nav button{border-radius:9px;color:var(--secondary-ink,var(--muted));transition:background .15s,color .15s}
+.app-shell .page-nav button:hover{background:var(--tint);color:var(--ink)}
+.app-shell .page-nav button.active{background:var(--green-soft);color:var(--green);box-shadow:inset 3px 0 0 var(--green);font-weight:500}
+.app-shell .progress-track{border-radius:99px;overflow:hidden}.app-shell .progress-track span{border-radius:99px;background:linear-gradient(90deg,color-mix(in srgb,var(--green) 55%,transparent),var(--green));transition:width .5s ease}
+.app-shell .recent-records,.app-shell .model-status{border-radius:var(--radius)}
+
+/* Reading: a quiet hover band helps the eye keep its line, and the English sits a step back. */
+.app-shell .paper-article{max-width:800px}
+.app-shell .sentence-pair{padding:8px 12px;margin-left:-12px;margin-right:-12px;border-radius:12px;transition:background .25s}
+.app-shell .sentence-pair:hover{background:color-mix(in srgb,var(--green-soft) 40%,transparent)}
+.app-shell .sentence-zh{color:var(--ink)}
+.app-shell .sentence-en{color:color-mix(in srgb,var(--ink) 74%,var(--paper))}
+.app-shell .language-mark{border-radius:5px;border-color:var(--line);color:var(--muted);background:var(--paper);opacity:.85}
+.app-shell .single-pair .sentence-en{color:var(--ink)}
+.app-shell .source-page-label{color:var(--muted);letter-spacing:.5px}
+.app-shell .paper-visual{border-radius:var(--radius);box-shadow:var(--shadow-soft);border-color:var(--line);overflow:hidden}
+.app-shell .paper-visual .visual-tools button{border-radius:99px}
+.app-shell .paper-equation{border-radius:var(--radius)}
+.app-shell .reader-footer{background:color-mix(in srgb,var(--paper) 92%,transparent)}
+
+/* Assistant */
+.app-shell .assistant-panel{background:color-mix(in srgb,var(--chrome) 55%,var(--paper))}
+.app-shell .message.user{display:flex;flex-direction:column;align-items:flex-end}
+.app-shell .message.user .message-content{background:var(--green-soft);border:1px solid color-mix(in srgb,var(--green) 12%,transparent);color:var(--ink);border-radius:16px 16px 4px 16px;max-width:90%}
+.app-shell .message.user img{border-radius:var(--radius-sm)}
+.app-shell .message.assistant .message-content{color:var(--ink)}
+.app-shell .message-label{color:var(--muted)}
+.app-shell .message.failed .message-content{border-radius:12px}
+.app-shell .lesson-animation,.app-shell .understanding-check{border-radius:14px;box-shadow:var(--shadow-soft)}
+.app-shell .question-box{border-radius:16px;border-color:var(--line);background:var(--paper);box-shadow:var(--shadow-soft);transition:border-color .15s,box-shadow .15s}
+.app-shell .question-box:focus-within{border-color:color-mix(in srgb,var(--green) 55%,transparent);box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 12%,transparent)}
+.app-shell .question-box textarea{color:var(--ink)}
+.app-shell .send-button{border-radius:11px;transition:transform .08s,opacity .15s}.app-shell .send-button:active:not(:disabled){transform:scale(.95)}
+.app-shell .attachment{border-radius:var(--radius);box-shadow:var(--shadow-soft)}
+.app-shell .suggestions button{border-radius:10px;transition:border-color .15s,background .15s}.app-shell .suggestions button:hover{border-color:color-mix(in srgb,var(--green) 40%,transparent);background:var(--tint)}
+.app-shell .follow-ups button,.app-shell .message-sources button{transition:border-color .15s,background .15s}
+
+/* Floating layers */
+.app-shell .settings-modal{border-radius:20px;box-shadow:var(--shadow-lift)}
+.app-shell .modal-backdrop{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.app-shell .toast{border-radius:14px;box-shadow:var(--shadow-lift)}
+.app-shell .selection-popup button{border-radius:12px;background:var(--green);box-shadow:var(--shadow-lift)}
+.app-shell .guide-point,.app-shell .cite-card,.app-shell .glossary-card{border-radius:14px}
+.app-shell .cite-card,.app-shell .glossary-card{box-shadow:var(--shadow-lift)}
+
+@media(prefers-reduced-motion:reduce){.app-shell .sentence-pair,.app-shell .btn,.app-shell .page-nav button{transition:none}}
+/* The selected segment was a hard-coded light chip, unreadable on the night theme. */
+.app-shell[data-dark=true] .segmented button.selected{background:color-mix(in srgb,var(--paper),var(--green) 22%);color:var(--ink)}

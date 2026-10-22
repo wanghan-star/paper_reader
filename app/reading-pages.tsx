@@ -33,8 +33,12 @@ function ContentBlock({sentence:s,index,doc,attachText,attachImage,onRef}:{onRef
   }
   if(s.uncertain&&visual)return <>{visual}<p className="visual-hint">这一处字迹尚未确认，已保留原图，可框选后提问。</p></>;
   const imageBlock=s.kind==='figure'||s.kind==='table';
-  return <>{imageBlock&&visual}<div data-block={s.id} className={`sentence-pair ${s.heading?"heading-pair":""} ${imageBlock?"caption-pair":""}`}>
-    <div className={`sentence-zh ${!s.zh?"untranslated":""}`}><span className="language-mark">中</span><div>{s.zh?<RichText onRef={onRef}>{s.zh}</RichText>:<span>待翻译<span className="untranslated-hint"> · 点击上方翻译按钮</span></span>}</div></div>
+  // Author lists, numbers and names often come back unchanged: show such a pair once.
+  // A "translation" with almost no Chinese that matches once "and"/"和" and punctuation are ignored is the same text.
+  const plain=(t:string)=>t.replace(/\band\b|[和与及]/g,'').replace(/[\s,，.。;；:：()（）、]/g,'').toLowerCase();
+  const same=!!s.zh&&(s.zh.match(/[\u4e00-\u9fff]/g)||[]).length<=3&&plain(s.zh)===plain(s.en);
+  return <>{imageBlock&&visual}<div data-block={s.id} className={`sentence-pair ${s.heading?"heading-pair":""} ${imageBlock?"caption-pair":""} ${same?"single-pair":""}`}>
+    {!same&&<div className={`sentence-zh ${!s.zh?"untranslated":""}`}><span className="language-mark">中</span><div>{s.zh?<RichText onRef={onRef}>{s.zh}</RichText>:<span>待翻译<span className="untranslated-hint"> · 点击上方翻译按钮</span></span>}</div></div>}
     <div className="sentence-en"><span className="language-mark">EN</span><div><RichText onRef={onRef}>{s.en}</RichText></div><button className="sentence-help" aria-label={`解释第 ${s.id+1} 段 · 原文第 ${index+1} 页`} title="解释这段文字" onClick={()=>attachText(s.en,index+1)}><MessageSquareText size={14}/></button></div>
     {!imageBlock&&visual&&<Reveal title="核对本段公式原图" className="formula-original">{visual}</Reveal>}
   </div></>;
